@@ -1,0 +1,210 @@
+name: Kernel CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Job 1: kernel-proof
+  #
+  # Proves the kernel builds, tests pass, installs from a tarball, and the
+  # full README walkthrough succeeds in a clean room.
+  # --------------------------------------------------------------------------
+  kernel-proof:
+    name: Kernel Proof (build + test + tarball + walkthrough)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: Pack tarball
+        run: npm pack
+
+      - name: Clean-room install from tarball
+        run: |
+          TARBALL=$(ls clawforge-*.tgz)
+          echo "Tarball: $TARBALL"
+
+          CLEANDIR=$(mktemp -d)
+          echo "Clean room: $CLEANDIR"
+
+          cd "$CLEANDIR"
+          npm init -y --silent
+          npm install "$GITHUB_WORKSPACE/$TARBALL"
+
+          # Verify clawctl is accessible
+          npx clawctl --help
+
+      - name: Clean-room walkthrough
+        run: |
+          CLEANDIR=$(mktemp -d)
+          TARBALL=$(ls "$GITHUB_WORKSPACE"/clawforge-*.tgz)
+
+          cd "$CLEANDIR"
+          npm init -y --silent
+          npm install "$TARBALL"
+
+          export CLAWFORGE_DB_PATH="$CLEANDIR/data/db.sqlite"
+          export CLAWFORGE_ARTIFACT_ROOT="$CLEANDIR/data/artifacts"
+
+          echo "--- Step 1: init ---"
+          npx clawctl init
+
+          echo "--- Step 2: new-run ---"
+          RUN_JSON=$(npx clawctl new-run --actor ci-proof --host github-actions --json)
+          echo "$RUN_JSON"
+          RUN_ID=$(echo "$RUN_JSON" | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).runId")
+          echo "RUN_ID=$RUN_ID"
+
+          echo "--- Step 3: validate-contract ---"
+          npx clawctl validate-contract "$GITHUB_WORKSPACE/examples/intent-contract.json"
+
+          echo "--- Step 4: append-event ---"
+          npx clawctl append-event --run "$RUN_ID" --event "$GITHUB_WORKSPACE/examples/contract-event.json"
+
+          echo "--- Step 5: put-artifact ---"
+          echo '{"ci":"proof","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"'"}' > "$CLEANDIR/ci-artifact.json"
+          npx clawctl put-artifact --run "$RUN_ID" --file "$CLEANDIR/ci-artifact.json" --mime application/json --label "CI proof artifact"
+
+          echo "--- Step 6: verify-run ---"
+          npx clawctl verify-run --run "$RUN_ID"
+
+          echo "--- Step 7: list-events ---"
+          npx clawctl list-events --run "$RUN_ID"
+
+          echo "--- Step 8: export-evidence ---"
+          npx clawctl export-evidence --run "$RUN_ID" --out "$CLEANDIR/evidence.zip"
+
+          echo "--- Assertions ---"
+          test -f "$CLEANDIR/evidence.zip" || { echo "FAIL: evidence.zip not found"; exit 1; }
+          test -f "$CLEANDIR/data/db.sqlite" || { echo "FAIL: db.sqlite not found"; exit 1; }
+
+          # Verify zip contents
+          unzip -l "$CLEANDIR/evidence.zip" | grep "evidence/run.json" || { echo "FAIL: run.json missing from zip"; exit 1; }
+          unzip -l "$CLEANDIR/evidence.zip" | grep "evidence/events.jsonl" || { echo "FAIL: events.jsonl missing from zip"; exit 1; }
+          unzip -l "$CLEANDIR/evidence.zip" | grep "evidence/integrity/chain.json" || { echo "FAIL: chain.json missing from zip"; exit 1; }
+
+          echo "=== KERNEL PROOF PASSED ==="
+
+  # --------------------------------------------------------------------------
+  # Job 2: kernel-integrity-failure
+  #
+  # Proves that tampering with the SQLite database is detected by verify-run.
+  # This job must fail verification (exit non-zero) after tampering.
+  # --------------------------------------------------------------------------
+  kernel-integrity-failure:
+    name: Kernel Integrity Failure Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack and install in clean room
+        run: |
+          npm pack
+          TARBALL=$(ls clawforge-*.tgz)
+          CLEANDIR=$(mktemp -d)
+          echo "CLEANDIR=$CLEANDIR" >> "$GITHUB_ENV"
+
+          cd "$CLEANDIR"
+          npm init -y --silent
+          npm install "$GITHUB_WORKSPACE/$TARBALL"
+
+      - name: Create a run with events
+        run: |
+          export CLAWFORGE_DB_PATH="$CLEANDIR/data/db.sqlite"
+          export CLAWFORGE_ARTIFACT_ROOT="$CLEANDIR/data/artifacts"
+
+          cd "$CLEANDIR"
+
+          npx clawctl init
+          RUN_JSON=$(npx clawctl new-run --actor tamper-test --json)
+          RUN_ID=$(echo "$RUN_JSON" | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).runId")
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+
+          # Append a second event
+          npx clawctl append-event --run "$RUN_ID" --event "$GITHUB_WORKSPACE/examples/contract-event.json"
+
+          # Verify chain is valid BEFORE tampering
+          npx clawctl verify-run --run "$RUN_ID"
+          echo "Chain is valid before tampering."
+
+      - name: Tamper with SQLite database
+        run: |
+          # Modify the payload of the second event directly in SQLite
+          sqlite3 "$CLEANDIR/data/db.sqlite" \
+            "UPDATE events SET payload_json = '{\"tampered\":true}' WHERE seq = 2;"
+          echo "Database tampered: payload_json of seq=2 replaced."
+
+      - name: Verify tampering is detected
+        run: |
+          export CLAWFORGE_DB_PATH="$CLEANDIR/data/db.sqlite"
+          export CLAWFORGE_ARTIFACT_ROOT="$CLEANDIR/data/artifacts"
+
+          cd "$CLEANDIR"
+
+          # verify-run MUST exit non-zero after tampering
+          if npx clawctl verify-run --run "$RUN_ID" 2>&1; then
+            echo "FAIL: verify-run exited 0 after tampering — integrity check is broken!"
+            exit 1
+          else
+            EXIT_CODE=$?
+            echo "verify-run correctly exited non-zero (code=$EXIT_CODE) after tampering."
+          fi
+
+          # Also verify with --json to check the failure structure
+          OUTPUT=$(npx clawctl verify-run --run "$RUN_ID" --json 2>&1 || true)
+          echo "$OUTPUT"
+
+          # Assert the output contains valid=false
+          echo "$OUTPUT" | node -pe "
+            const obj = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            if (obj.valid !== false) { process.stderr.write('FAIL: expected valid=false'); process.exit(1); }
+            if (!obj.failures || obj.failures.length === 0) { process.stderr.write('FAIL: expected failures array'); process.exit(1); }
+            'Integrity failure correctly reported: ' + obj.failures.length + ' failure(s)'
+          "
+
+          echo "=== INTEGRITY FAILURE DETECTION PASSED ==="

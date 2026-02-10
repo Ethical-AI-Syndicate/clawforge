@@ -273,6 +273,8 @@ pnpm clawctl       # run CLI (after build)
 - [Architecture](docs/architecture.md) — module boundaries, data flow, dependencies
 - [Threat Model](docs/threat-model.md) — assets, mitigations, residual risks
 - [CLI Reference](docs/cli.md) — commands, flags, exit codes, error codes
+- [Stability Contract](docs/stability.md) — versioning policy and compatibility guarantees
+- [Changelog](CHANGELOG.md) — release history
 
 ## License
 

@@ -1,0 +1,132 @@
+# Governance Pack: Change Shipping
+#
+# Derived from the "Ship a Change" reference wedge.
+# This file is advisory documentation. It is not executable.
+# No tool in this repository reads or acts on this file.
+
+pack:
+  id: change-shipping
+  version: "1.0.0"
+  wedge: src/wedges/ship-change/
+  status: advisory
+
+description: >
+  Documents the patterns observed in workflows that record a planned
+  change — code deploy, policy update, configuration rotation, or
+  similar deliberate action. Derived by inspecting the Ship a Change
+  wedge's example inputs, event sequence, and artifact types.
+
+expectations:
+
+  # ---------------------------------------------------------------------------
+  # Intent sequencing
+  # ---------------------------------------------------------------------------
+
+  - id: intent-recorded-before-artifacts
+    description: >
+      In the reference wedge, the ContractRecorded event (carrying the
+      intent description) is recorded before any ArtifactRecorded events.
+      This ordering establishes what the change is intended to accomplish
+      before evidence of the change is attached.
+    importance: expected
+    observed_in: >
+      The orchestration script records ContractRecorded at seq 2,
+      followed by ArtifactRecorded events at seq 3 and onward.
+
+  - id: intent-includes-title-and-description
+    description: >
+      In observed runs, the IntentContract contains a non-empty title
+      and description. These fields explain what the change is and why
+      it is being made. A change record without them provides artifacts
+      but no stated purpose.
+    importance: expected
+    observed_in: >
+      Both reference scenarios (code deploy, runbook update) include
+      a title summarizing the change and a description explaining the
+      rationale.
+
+  - id: intent-identifies-actor
+    description: >
+      In observed runs, the IntentContract's actor field identifies who
+      authored the intent. This allows the change to be attributed to
+      a specific person or system.
+    importance: expected
+    observed_in: >
+      Both reference scenarios populate actor.actorId and
+      actor.actorType in the IntentContract.
+
+  # ---------------------------------------------------------------------------
+  # Artifacts
+  # ---------------------------------------------------------------------------
+
+  - id: at-least-one-artifact-present
+    description: >
+      In observed runs, at least one artifact accompanies the change
+      record. A change record with no artifacts describes an intention
+      but provides no evidence of what was actually produced or shipped.
+    importance: expected
+    observed_in: >
+      Both reference scenarios attach two artifacts each — Scenario A
+      attaches a deployment manifest and build log; Scenario B attaches
+      a runbook and approval record.
+
+  - id: artifact-hashes-match-manifest
+    description: >
+      In the evidence bundle, each artifact file is named by its SHA-256
+      hash. The manifest lists the expected hash for each artifact. When
+      these match, the artifact content is the same as what was originally
+      recorded.
+    importance: expected
+    observed_in: >
+      The evidence export writes artifacts to content-addressed paths
+      and records hashes in artifacts/manifest.json.
+
+  # ---------------------------------------------------------------------------
+  # Correlation
+  # ---------------------------------------------------------------------------
+
+  - id: correlation-id-present
+    description: >
+      The RunStarted event's metadata typically includes a correlationId
+      linking the run to an external tracking system — a ticket number,
+      pull request, or change request identifier. This allows the
+      evidence bundle to be associated with the decision that initiated
+      the change.
+    importance: recommended
+    observed_in: >
+      Scenario A uses "--correlation TICKET-4217"; Scenario B uses
+      "--correlation OPS-891". Both appear in RunStarted metadata.
+
+  # ---------------------------------------------------------------------------
+  # Closure
+  # ---------------------------------------------------------------------------
+
+  - id: run-explicitly-closed
+    description: >
+      In observed runs, the event sequence ends with a RunCompleted
+      event. An event stream without RunCompleted typically indicates
+      the workflow was interrupted or the change was not confirmed.
+    importance: expected
+    observed_in: >
+      The orchestration script appends RunCompleted as the last event,
+      with a summary line confirming the change was shipped.
+
+  - id: run-completed-after-all-artifacts
+    description: >
+      In the reference wedge, the RunCompleted event appears after all
+      ArtifactRecorded events. This ordering indicates that the run was
+      closed only after all artifacts had been attached to the record.
+    importance: expected
+    observed_in: >
+      The orchestration script records all ArtifactRecorded events
+      before appending RunCompleted.
+
+  - id: evidence-bundle-produced
+    description: >
+      The reference wedge exports a zip evidence bundle as its final
+      step. The bundle is a self-contained, portable record that can
+      be verified without access to the original database.
+    importance: recommended
+    observed_in: >
+      The orchestration script calls exportEvidenceBundle() after
+      RunCompleted, producing a zip at the --out path.

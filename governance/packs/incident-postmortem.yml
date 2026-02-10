@@ -1,0 +1,144 @@
+# Governance Pack: Incident Postmortem
+#
+# Derived from the "Incident Postmortem" reference wedge.
+# This file is advisory documentation. It is not executable.
+# No tool in this repository reads or acts on this file.
+
+pack:
+  id: incident-postmortem
+  version: "1.0.0"
+  wedge: src/wedges/incident-postmortem/
+  status: advisory
+
+description: >
+  Documents the patterns observed in workflows that record a completed
+  incident investigation — outage postmortem, failure analysis, near-miss
+  review, or similar retrospective. Derived by inspecting the Incident
+  Postmortem wedge's example inputs, event sequence, and artifact types.
+
+expectations:
+
+  # ---------------------------------------------------------------------------
+  # Intent fields
+  # ---------------------------------------------------------------------------
+
+  - id: incident-described-in-intent
+    description: >
+      In observed runs, the IntentContract includes a title summarizing
+      the incident and a description covering what happened, when it was
+      detected, and what was impacted. These fields provide the context
+      that gives the rest of the evidence meaning.
+    importance: expected
+    observed_in: >
+      The reference example uses title "INC-2049: Database connection pool
+      exhaustion causing cascading API failures" and a multi-sentence
+      description covering scope, impact, and detection time.
+
+  - id: incident-metadata-in-input-params
+    description: >
+      The IntentContract's inputParams typically include incident-specific
+      metadata — an incident identifier, a severity level, and a detection
+      timestamp. These fields allow the postmortem to be cross-referenced
+      with external monitoring or ticketing systems.
+    importance: recommended
+    observed_in: >
+      The reference example populates inputParams with incidentId,
+      severity, and detectedAt fields.
+
+  # ---------------------------------------------------------------------------
+  # Artifact types
+  # ---------------------------------------------------------------------------
+
+  - id: timeline-artifact-typical
+    description: >
+      Postmortem runs typically include at least one artifact that serves
+      as a chronological record of the incident — a timeline of events
+      from detection through resolution. This artifact supports reviewers
+      in understanding the sequence of what happened.
+    importance: recommended
+    observed_in: >
+      The reference example attaches "timeline.md", a minute-by-minute
+      incident timeline.
+
+  - id: analysis-artifact-typical
+    description: >
+      Postmortem runs typically include at least one artifact containing
+      investigation notes or root cause analysis. Raw data alone
+      (logs, metrics) documents what was collected but not what
+      conclusions were drawn from it.
+    importance: recommended
+    observed_in: >
+      The reference example attaches "rca.md", a root cause analysis
+      document with contributing factors and remediation actions.
+
+  - id: supporting-data-artifact-typical
+    description: >
+      Postmortem runs commonly include raw supporting data — log
+      excerpts, metric snapshots, or database query output. These
+      artifacts let a reviewer verify that the analysis is grounded
+      in observable evidence.
+    importance: recommended
+    observed_in: >
+      The reference example attaches "pg-connections.log", a raw
+      pg_stat_activity snapshot showing leaked connections.
+
+  - id: multiple-artifacts-typical
+    description: >
+      In observed postmortem runs, at least two artifacts are attached.
+      A single artifact is uncommon because postmortems typically involve
+      both a narrative record (timeline or analysis) and supporting data.
+    importance: recommended
+    observed_in: >
+      The reference example attaches three artifacts: a timeline,
+      an RCA document, and a log excerpt.
+
+  # ---------------------------------------------------------------------------
+  # Event ordering and closure
+  # ---------------------------------------------------------------------------
+
+  - id: intent-recorded-before-artifacts
+    description: >
+      In the reference wedge, the ContractRecorded event (carrying the
+      incident description) is recorded before any ArtifactRecorded
+      events. This ordering establishes the subject of the investigation
+      before evidence is attached.
+    importance: expected
+    observed_in: >
+      The orchestration script records ContractRecorded at seq 2,
+      followed by ArtifactRecorded events at seq 3 and onward.
+
+  - id: run-completed-after-all-evidence
+    description: >
+      In the reference wedge, the RunCompleted event appears as the
+      final event, after all artifacts have been recorded. This
+      pattern indicates the postmortem was closed only after all
+      available evidence was attached.
+    importance: expected
+    observed_in: >
+      The orchestration script appends RunCompleted as the last event,
+      after all ArtifactRecorded events.
+
+  - id: run-explicitly-closed
+    description: >
+      In observed runs, the event sequence ends with a RunCompleted
+      event. An event stream without RunCompleted typically indicates
+      the workflow was interrupted or the investigation is still open.
+    importance: expected
+    observed_in: >
+      The reference example produces a RunCompleted event at seq 6
+      with a summary line confirming closure.
+
+  # ---------------------------------------------------------------------------
+  # Correlation
+  # ---------------------------------------------------------------------------
+
+  - id: correlation-id-to-incident-tracker
+    description: >
+      The RunStarted event's metadata typically includes a correlationId
+      that links the postmortem to an external incident tracking system.
+      This allows the evidence bundle to be associated with the original
+      incident record.
+    importance: recommended
+    observed_in: >
+      The reference example passes "--correlation INC-2049", which
+      appears in RunStarted metadata as correlationId.

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0.0",
+  "intentId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+  "title": "Update incident response runbook to include on-call escalation path",
+  "description": "Current runbook lacks escalation path for P1 incidents occurring outside business hours. Adding explicit pager tree, 15-minute SLA for acknowledgement, and fallback to secondary on-call.",
+  "actor": { "actorId": "ops-lead-chen", "actorType": "human" },
+  "constraints": { "maxSteps": 3, "timeoutMs": 600000, "providers": [] },
+  "inputParams": {
+    "ticketUrl": "https://issues.example.com/OPS-891",
+    "changeType": "runbook-update",
+    "riskLevel": "low",
+    "reviewedBy": "sre-team"
+  },
+  "tags": ["operations", "runbook", "incident-response"],
+  "createdAt": "2026-02-10T14:30:00.000Z"
+}

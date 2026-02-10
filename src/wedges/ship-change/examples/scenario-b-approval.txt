@@ -1,0 +1,9 @@
+Change Approval Record
+======================
+Ticket:     OPS-891
+Change:     Incident response runbook v2.3 — add P1 escalation path
+Author:     ops-lead-chen
+Reviewed:   sre-team (3 approvals: @amir, @priya, @james)
+Approved:   2026-02-10T14:25:00Z
+Risk:       Low (documentation-only, no system changes)
+Rollback:   Revert to runbook v2.2

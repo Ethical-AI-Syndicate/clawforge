@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "intentId": "550e8400-e29b-41d4-a716-446655440001",
+  "title": "Summarize repository",
+  "description": "Analyze and summarize the code repository structure",
+  "actor": { "actorId": "user-1", "actorType": "human" },
+  "constraints": { "maxSteps": 10, "timeoutMs": 300000, "providers": ["openai"] },
+  "inputParams": { "repoUrl": "https://github.com/example/repo" },
+  "tags": ["summarization"],
+  "createdAt": "2026-02-09T00:00:00.000Z"
+}

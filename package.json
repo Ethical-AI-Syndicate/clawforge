@@ -1,24 +1,36 @@
 {
   "name": "clawforge",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=20.20.0 <21"
   },
   "packageManager": "pnpm@10.29.2",
+  "files": [
+    "dist",
+    "docs",
+    "README.md"
+  ],
+  "bin": {
+    "clawctl": "dist/cli/index.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "cli": "node dist/cli/index.js"
+    "clawctl": "node dist/cli/index.js"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "better-sqlite3": "^12.6.2",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.2.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"

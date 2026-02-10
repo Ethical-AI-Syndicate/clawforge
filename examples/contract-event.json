@@ -1,0 +1,10 @@
+{
+  "eventId": "660e8400-e29b-41d4-a716-446655440002",
+  "type": "ContractRecorded",
+  "schemaVersion": "1.0.0",
+  "actor": { "actorId": "user-1", "actorType": "human" },
+  "payload": {
+    "contractType": "IntentContract",
+    "contractId": "550e8400-e29b-41d4-a716-446655440001"
+  }
+}

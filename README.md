@@ -6,6 +6,21 @@ intent into governed, deterministic workflows invoking disposable agent workers.
 ClawForge's foundation layer provides typed contracts, an append-only audit
 trail, content-addressable artifact storage, and verifiable evidence export.
 
+## Start Here: Proofs
+
+ClawForge ships two reference wedges that prove the kernel's guarantees
+using real inputs and verifiable evidence bundles:
+
+- **[Ship a Change](src/wedges/ship-change/)** — records a planned change
+  with intent, artifacts, and a hash-chained audit trail.
+- **[Incident Postmortem](src/wedges/incident-postmortem/)** — records an
+  unplanned failure investigation using the identical kernel semantics.
+
+Both produce self-contained evidence bundles. See
+[docs/wedges.md](docs/wedges.md) for what they prove and how they differ.
+
+Inspect the evidence bundles to verify the claims.
+
 ## Problem Statement
 
 Agent-based systems produce opaque, non-reproducible results. There is no
@@ -273,6 +288,7 @@ pnpm clawctl       # run CLI (after build)
 - [Architecture](docs/architecture.md) — module boundaries, data flow, dependencies
 - [Threat Model](docs/threat-model.md) — assets, mitigations, residual risks
 - [CLI Reference](docs/cli.md) — commands, flags, exit codes, error codes
+- [Reference Wedges](docs/wedges.md) — proof workflows and what they demonstrate
 - [Stability Contract](docs/stability.md) — versioning policy and compatibility guarantees
 - [Changelog](CHANGELOG.md) — release history
 

@@ -1,0 +1,21 @@
+-- pg_stat_activity snapshot taken 2026-02-08T03:33:00Z by dba-kim
+-- Query: SELECT pid, usename, application_name, state, query_start, state_change
+--        FROM pg_stat_activity WHERE datname = 'orders_prod' ORDER BY query_start;
+-- Truncated to connections in 'idle in transaction' state (147 of 200 total)
+
+  pid  | usename       | application_name         | state                | query_start              | state_change
+-------+---------------+--------------------------+----------------------+--------------------------+--------------------------
+ 14023 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T02:01:14.332Z | 2026-02-08T02:01:14.518Z
+ 14031 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T02:01:17.105Z | 2026-02-08T02:01:17.298Z
+ 14044 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T02:01:22.741Z | 2026-02-08T02:01:22.903Z
+ 14058 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T02:01:29.887Z | 2026-02-08T02:01:30.015Z
+ 14067 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T02:01:33.214Z | 2026-02-08T02:01:33.401Z
+   ... |  ...          |  ...                     |  ...                 |  ...                     |  ...
+ 18892 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T03:31:58.667Z | 2026-02-08T03:31:58.812Z
+ 18901 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T03:32:04.119Z | 2026-02-08T03:32:04.287Z
+ 18914 | order_svc     | order-processing-service | idle in transaction  | 2026-02-08T03:32:11.443Z | 2026-02-08T03:32:11.605Z
+
+(147 rows; 53 active connections from payments-api, inventory-api, checkout-web omitted)
+-- All 147 idle-in-transaction connections originate from order-processing-service.
+-- Oldest connection leaked at 02:01:14Z (1h32m ago). Newest at 03:32:11Z (1m ago).
+-- Pool limit: 200. Utilization: 200/200 (100%).

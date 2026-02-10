@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "intentId": "b7e3f1a2-9d4c-4e8b-a6f0-1c2d3e4f5a6b",
+  "title": "INC-2049: Database connection pool exhaustion causing cascading API failures",
+  "description": "At 2026-02-08T03:17Z, monitoring detected elevated 5xx error rates on the payments API. Investigation revealed that a connection pool leak in the order-processing service exhausted all available PostgreSQL connections within 40 minutes, causing cascading failures across payments, inventory, and user-facing checkout. Incident lasted 2h14m. Full service restored at 05:31Z by restarting affected pods and deploying a connection pool fix.",
+  "actor": { "actorId": "sre-patel", "actorType": "human" },
+  "constraints": { "maxSteps": 5, "timeoutMs": 1800000, "providers": [] },
+  "inputParams": {
+    "incidentId": "INC-2049",
+    "severity": "P1",
+    "detectedAt": "2026-02-08T03:17:00Z",
+    "resolvedAt": "2026-02-08T05:31:00Z",
+    "durationMinutes": "134",
+    "impactedServices": "payments-api, inventory-api, checkout-web",
+    "customerImpact": "~12,000 failed checkout attempts during incident window"
+  },
+  "tags": ["incident", "postmortem", "database", "connection-pool", "P1"],
+  "createdAt": "2026-02-10T16:00:00.000Z"
+}

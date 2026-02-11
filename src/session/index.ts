@@ -294,3 +294,43 @@ export {
   writePatchApplyReportJson,
   readPatchApplyReportJson,
 } from "./persistence.js";
+
+// Phase N: Quorum Signatures for Approval Artifacts
+export {
+  computeDecisionLockHash,
+} from "./decision-lock-hash.js";
+
+export {
+  ApprovalPolicySchema,
+  validateApprovalPolicy,
+  type ApprovalPolicy,
+  type Approver,
+  type ApprovalRule,
+} from "./approval-policy.js";
+
+export {
+  ApprovalBundleSchema,
+  ApprovalSignatureSchema,
+  computeSignaturePayloadHash,
+  computeBundleHash as computeApprovalBundleHash,
+  verifySignature,
+  type ApprovalBundle,
+  type ApprovalSignature,
+} from "./approval-bundle.js";
+
+export {
+  enforceApprovals,
+  type ApprovalEnforcementResult,
+  type SatisfiedRule,
+  type EnforceApprovalsInput,
+} from "./approval-enforcement.js";
+
+export {
+  writeApprovalPolicyJson,
+  readApprovalPolicyJson,
+  writeApprovalBundleJson,
+  readApprovalBundleJson,
+  readUsedApprovalNoncesJson,
+  writeUsedApprovalNoncesJson,
+  appendApprovalNonce,
+} from "./persistence.js";

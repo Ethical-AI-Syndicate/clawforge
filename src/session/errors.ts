@@ -55,7 +55,12 @@ export type SessionErrorCode =
   | "SNAPSHOT_HASH_MISSING"
   | "SNAPSHOT_HASH_MISMATCH"
   | "PATCH_APPLY_FAILED"
-  | "PATCH_BASE_MISMATCH";
+  | "PATCH_BASE_MISMATCH"
+  | "APPROVAL_POLICY_INVALID"
+  | "APPROVAL_BUNDLE_INVALID"
+  | "APPROVAL_SIGNATURE_INVALID"
+  | "APPROVAL_QUORUM_NOT_MET"
+  | "APPROVAL_REPLAY_DETECTED";
 
 export class SessionError extends Error {
   public readonly code: SessionErrorCode;

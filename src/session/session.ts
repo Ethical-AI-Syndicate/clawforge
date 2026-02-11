@@ -44,6 +44,12 @@ import {
   writeRepoSnapshotJson,
   readRepoSnapshotJson,
   writePatchApplyReportJson,
+  writeApprovalPolicyJson,
+  readApprovalPolicyJson,
+  writeApprovalBundleJson,
+  readApprovalBundleJson,
+  readUsedApprovalNoncesJson,
+  appendApprovalNonce,
   type SessionRecord,
 } from "./persistence.js";
 import {
@@ -91,6 +97,21 @@ import {
   type PatchApplyReport,
   type ProvePatchAppliesOptions,
 } from "./patch-apply.js";
+import {
+  validateApprovalPolicy,
+  type ApprovalPolicy,
+} from "./approval-policy.js";
+import {
+  verifySignature,
+  type ApprovalBundle,
+  computeBundleHash,
+} from "./approval-bundle.js";
+import {
+  enforceApprovals,
+  type ApprovalEnforcementResult,
+} from "./approval-enforcement.js";
+import { computeDecisionLockHash } from "./decision-lock-hash.js";
+import { computeCapsuleHash } from "./prompt-capsule.js";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -1019,6 +1040,224 @@ export class SessionManager {
     }
 
     return report;
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase N: Approval Policy and Bundle
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record approval policy for a session.
+   *
+   * @param sessionId - Session ID
+   * @param policy - Approval policy to record
+   * @returns The recorded policy
+   */
+  recordApprovalPolicy(
+    sessionId: string,
+    policy: ApprovalPolicy,
+  ): ApprovalPolicy {
+    this.requireSession(sessionId);
+
+    // Validate policy
+    validateApprovalPolicy(policy);
+
+    // Verify sessionId matches
+    if (policy.sessionId !== sessionId) {
+      throw new SessionError(
+        `Policy sessionId "${policy.sessionId}" does not match session "${sessionId}"`,
+        "ID_MISMATCH",
+        { policySessionId: policy.sessionId, sessionId },
+      );
+    }
+
+    writeApprovalPolicyJson(this.sessionRoot, sessionId, policy);
+
+    return policy;
+  }
+
+  /**
+   * Record approval bundle for a session.
+   *
+   * @param sessionId - Session ID
+   * @param bundle - Approval bundle to record
+   * @returns The recorded bundle
+   */
+  recordApprovalBundle(
+    sessionId: string,
+    bundle: ApprovalBundle,
+  ): ApprovalBundle {
+    this.requireSession(sessionId);
+
+    // Load policy
+    const policy = readApprovalPolicyJson(this.sessionRoot, sessionId);
+    if (!policy) {
+      throw new SessionError(
+        "Cannot record approval bundle: no approval policy exists",
+        "APPROVAL_POLICY_INVALID",
+        { sessionId },
+      );
+    }
+
+    // Verify sessionId matches
+    if (bundle.sessionId !== sessionId) {
+      throw new SessionError(
+        `Bundle sessionId "${bundle.sessionId}" does not match session "${sessionId}"`,
+        "ID_MISMATCH",
+        { bundleSessionId: bundle.sessionId, sessionId },
+      );
+    }
+
+    if (bundle.sessionId !== policy.sessionId) {
+      throw new SessionError(
+        `Bundle sessionId "${bundle.sessionId}" does not match policy sessionId "${policy.sessionId}"`,
+        "ID_MISMATCH",
+        { bundleSessionId: bundle.sessionId, policySessionId: policy.sessionId },
+      );
+    }
+
+    // Build approver map
+    const approverMap = new Map<string, typeof policy.approvers[0]>();
+    for (const approver of policy.approvers) {
+      approverMap.set(approver.approverId, approver);
+    }
+
+    // Validate and verify each signature
+    for (const signature of bundle.signatures) {
+      // Verify approver exists
+      const approver = approverMap.get(signature.approverId);
+      if (!approver) {
+        throw new SessionError(
+          `Signature ${signature.signatureId} references unknown approver "${signature.approverId}"`,
+          "APPROVAL_BUNDLE_INVALID",
+          { sessionId, signatureId: signature.signatureId },
+        );
+      }
+
+      // Verify signature cryptographically
+      try {
+        verifySignature(signature, approver.publicKeyPem);
+      } catch (error) {
+        if (error instanceof SessionError) {
+          throw error;
+        }
+        throw new SessionError(
+          `Signature ${signature.signatureId} verification failed: ${String(error)}`,
+          "APPROVAL_SIGNATURE_INVALID",
+          { sessionId, signatureId: signature.signatureId },
+        );
+      }
+
+      // Check nonce not reused
+      try {
+        appendApprovalNonce(this.sessionRoot, sessionId, signature.nonce);
+      } catch (error) {
+        if (error instanceof SessionError && error.code === "APPROVAL_REPLAY_DETECTED") {
+          throw error;
+        }
+        throw new SessionError(
+          `Failed to record approval nonce: ${String(error)}`,
+          "APPROVAL_BUNDLE_INVALID",
+          { sessionId, signatureId: signature.signatureId },
+        );
+      }
+    }
+
+    // Verify bundle hash
+    const computedHash = computeBundleHash(bundle);
+    if (bundle.bundleHash !== computedHash) {
+      throw new SessionError(
+        `Bundle hash mismatch: expected ${computedHash}, got ${bundle.bundleHash}`,
+        "APPROVAL_BUNDLE_INVALID",
+        { sessionId, expected: computedHash, got: bundle.bundleHash },
+      );
+    }
+
+    writeApprovalBundleJson(this.sessionRoot, sessionId, bundle);
+
+    return bundle;
+  }
+
+  /**
+   * Verify session approvals against policy and artifacts.
+   *
+   * @param sessionId - Session ID
+   * @returns Approval enforcement result
+   */
+  verifySessionApprovals(sessionId: string): ApprovalEnforcementResult {
+    this.requireSession(sessionId);
+
+    // Load policy and bundle
+    const policy = readApprovalPolicyJson(this.sessionRoot, sessionId);
+    if (!policy) {
+      throw new SessionError(
+        "Cannot verify approvals: no approval policy exists",
+        "APPROVAL_POLICY_INVALID",
+        { sessionId },
+      );
+    }
+
+    const bundle = readApprovalBundleJson(this.sessionRoot, sessionId);
+    if (!bundle) {
+      throw new SessionError(
+        "Cannot verify approvals: no approval bundle exists",
+        "APPROVAL_BUNDLE_INVALID",
+        { sessionId },
+      );
+    }
+
+    // Load artifacts and compute hashes
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+
+    const artifacts: {
+      decisionLockHash?: string;
+      planHash?: string;
+      capsuleHash?: string;
+    } = {};
+
+    if (lock) {
+      artifacts.decisionLockHash = computeDecisionLockHash(lock);
+    }
+
+    if (plan) {
+      const planLike: ExecutionPlanLike = {
+        sessionId: plan.sessionId as string | undefined,
+        dodId: plan.dodId as string | undefined,
+        lockId: plan.lockId as string | undefined,
+        steps: plan.steps as ExecutionPlanLike["steps"],
+        allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+        ...plan,
+      };
+      artifacts.planHash = computePlanHash(planLike);
+    }
+
+    if (capsule) {
+      artifacts.capsuleHash = computeCapsuleHash(capsule);
+    }
+
+    // Load used approval nonces
+    const usedNonces = readUsedApprovalNoncesJson(this.sessionRoot, sessionId);
+
+    // Enforce approvals
+    const result = enforceApprovals({
+      policy,
+      bundle,
+      artifacts,
+      usedNonces,
+    });
+
+    // Throw if enforcement failed
+    if (!result.passed) {
+      throw new SessionError(
+        `Approval enforcement failed: ${result.errors.join("; ")}`,
+        "APPROVAL_QUORUM_NOT_MET",
+        { sessionId, errors: result.errors },
+      );
+    }
+
+    return result;
   }
 
   // -----------------------------------------------------------------------

@@ -150,6 +150,7 @@ export function extractSymbolMentions(patchText: string): string[] {
     const symbol = match[1];
     // Filter out common keywords and short tokens
     if (
+      symbol &&
       symbol.length >= 3 &&
       !["the", "and", "for", "are", "but", "not", "you", "all", "can", "her", "was", "one", "our", "out", "day", "get", "has", "him", "his", "how", "its", "may", "new", "now", "old", "see", "two", "way", "who", "boy", "did", "its", "let", "put", "say", "she", "too", "use"].includes(
         symbol.toLowerCase(),

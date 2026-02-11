@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { SESSION_SCHEMA_VERSION } from "./schemas.js";
 import { canonicalize } from "./canonical.js";
-import { sha256Hex } from "./crypto.js";
+import { sha256Hex as computeSha256Hex } from "./crypto.js";
 
 // ---------------------------------------------------------------------------
 // Shared field-level schemas
@@ -38,7 +38,7 @@ const schemaVersion = z
 
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 
-const sha256Hex = z
+const sha256HexSchema = z
   .string()
   .regex(SHA256_HEX_RE, "Must be a 64-char lowercase hex SHA-256 hash");
 
@@ -131,7 +131,7 @@ const BoundariesSchema = z
 const FileDigestSchema = z
   .object({
     path: repoRelativePath,
-    sha256: sha256Hex,
+    sha256: sha256HexSchema,
   })
   .passthrough();
 
@@ -148,7 +148,7 @@ const InputsSchema = z
 
 const HashSchema = z
   .object({
-    capsuleHash: sha256Hex,
+    capsuleHash: sha256HexSchema,
   })
   .passthrough();
 
@@ -162,7 +162,7 @@ export const PromptCapsuleSchema = z
     sessionId: uuidV4,
     capsuleId: uuidV4,
     lockId: uuidV4,
-    planHash: sha256Hex,
+    planHash: sha256HexSchema,
     createdAt: iso8601Utc,
     createdBy: ActorSchema,
     model: ModelConfigSchema,
@@ -232,5 +232,5 @@ export function computeCapsuleHash(capsule: PromptCapsule): string {
   const normalized = rest;
   
   const canonical = canonicalize(normalized);
-  return sha256Hex(canonical);
+  return computeSha256Hex(canonical);
 }

@@ -390,11 +390,19 @@ export function buildSymbolIndex(
       // Check if node is exported
       let isExported = false;
       try {
-        const modifiers = ts.getModifiers(node);
-        if (modifiers) {
+        // Type guard: check if node has modifiers property
+        if ("modifiers" in node && Array.isArray((node as any).modifiers)) {
+          const modifiers = (node as any).modifiers as ts.Modifier[];
           isExported = modifiers.some(
             (m) => m.kind === ts.SyntaxKind.ExportKeyword,
           );
+        } else {
+          const modifiers = ts.getModifiers(node as ts.HasModifiers);
+          if (modifiers) {
+            isExported = modifiers.some(
+              (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+            );
+          }
         }
       } catch {
         // Node doesn't support modifiers, skip

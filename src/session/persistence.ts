@@ -32,6 +32,8 @@ import type { SymbolIndex } from "./symbol-index.js";
 import type { SymbolValidationResult } from "./symbol-validate.js";
 import type { RepoSnapshot } from "./repo-snapshot.js";
 import type { PatchApplyReport } from "./patch-apply.js";
+import type { ApprovalPolicy } from "./approval-policy.js";
+import type { ApprovalBundle } from "./approval-bundle.js";
 
 // ---------------------------------------------------------------------------
 // Session metadata (what gets written to session.json)
@@ -713,4 +715,110 @@ export function readPatchApplyReportJson(
     return undefined;
   }
   return JSON.parse(readFileSync(filePath, "utf8")) as PatchApplyReport;
+}
+
+// ---------------------------------------------------------------------------
+// Phase N: Approval Policy persistence
+// ---------------------------------------------------------------------------
+
+export function writeApprovalPolicyJson(
+  sessionRoot: string,
+  sessionId: string,
+  policy: ApprovalPolicy,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "approval-policy.json"),
+    canonicalJson(policy),
+    "utf8",
+  );
+}
+
+export function readApprovalPolicyJson(
+  sessionRoot: string,
+  sessionId: string,
+): ApprovalPolicy | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "approval-policy.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as ApprovalPolicy;
+}
+
+// ---------------------------------------------------------------------------
+// Phase N: Approval Bundle persistence
+// ---------------------------------------------------------------------------
+
+export function writeApprovalBundleJson(
+  sessionRoot: string,
+  sessionId: string,
+  bundle: ApprovalBundle,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "approval-bundle.json"),
+    canonicalJson(bundle),
+    "utf8",
+  );
+}
+
+export function readApprovalBundleJson(
+  sessionRoot: string,
+  sessionId: string,
+): ApprovalBundle | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "approval-bundle.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as ApprovalBundle;
+}
+
+// ---------------------------------------------------------------------------
+// Phase N: Approval Nonce persistence (replay resistance)
+// ---------------------------------------------------------------------------
+
+export function readUsedApprovalNoncesJson(
+  sessionRoot: string,
+  sessionId: string,
+): string[] {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "used-approval-nonces.json");
+  if (!existsSync(filePath)) {
+    return [];
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as string[];
+}
+
+export function writeUsedApprovalNoncesJson(
+  sessionRoot: string,
+  sessionId: string,
+  nonces: string[],
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "used-approval-nonces.json"),
+    canonicalJson(nonces),
+    "utf8",
+  );
+}
+
+export function appendApprovalNonce(
+  sessionRoot: string,
+  sessionId: string,
+  nonce: string,
+): void {
+  const existing = readUsedApprovalNoncesJson(sessionRoot, sessionId);
+  if (existing.includes(nonce)) {
+    throw new SessionError(
+      `Approval nonce "${nonce}" has already been used`,
+      "APPROVAL_REPLAY_DETECTED",
+      { nonce },
+    );
+  }
+  writeUsedApprovalNoncesJson(sessionRoot, sessionId, [...existing, nonce]);
 }

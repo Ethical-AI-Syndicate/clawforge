@@ -64,7 +64,11 @@ export type SessionErrorCode =
   | "STEP_PACKET_INVALID"
   | "STEP_PACKET_LINT_FAILED"
   | "STEP_PACKET_EMIT_FAILED"
-  | "PACKET_RECEIPT_INVALID";
+  | "PACKET_RECEIPT_INVALID"
+  | "SEAL_INVALID"
+  | "SEAL_MISSING_DEPENDENCY"
+  | "SEAL_HASH_MISMATCH"
+  | "SEAL_BINDING_VIOLATION";
 
 export class SessionError extends Error {
   public readonly code: SessionErrorCode;

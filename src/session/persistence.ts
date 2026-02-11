@@ -35,6 +35,7 @@ import type { PatchApplyReport } from "./patch-apply.js";
 import type { ApprovalPolicy } from "./approval-policy.js";
 import type { ApprovalBundle } from "./approval-bundle.js";
 import type { StepPacket, PacketReceipt } from "./step-packet.js";
+import type { SealedChangePackage } from "./sealed-change-package.js";
 
 // ---------------------------------------------------------------------------
 // Session metadata (what gets written to session.json)
@@ -904,4 +905,34 @@ export function readPacketReceiptJson(
     return undefined;
   }
   return JSON.parse(readFileSync(filePath, "utf8")) as PacketReceipt;
+}
+
+// ---------------------------------------------------------------------------
+// Phase P: Sealed Change Package persistence
+// ---------------------------------------------------------------------------
+
+export function writeSealedChangePackageJson(
+  sessionRoot: string,
+  sessionId: string,
+  sealedPackage: SealedChangePackage,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "sealed-change-package.json"),
+    canonicalJson(sealedPackage),
+    "utf8",
+  );
+}
+
+export function readSealedChangePackageJson(
+  sessionRoot: string,
+  sessionId: string,
+): SealedChangePackage | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "sealed-change-package.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as SealedChangePackage;
 }

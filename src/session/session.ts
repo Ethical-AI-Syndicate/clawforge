@@ -55,6 +55,11 @@ import {
   readAllStepPacketsJson,
   writePacketReceiptJson,
   readPacketReceiptJson,
+  writeSealedChangePackageJson,
+  readSealedChangePackageJson,
+  readPolicyEvaluationJson,
+  readPatchApplyReportJson,
+  readReviewerReports,
   type SessionRecord,
 } from "./persistence.js";
 import {
@@ -90,8 +95,8 @@ import {
   type SymbolValidationResult,
 } from "./symbol-validate.js";
 import type { PatchArtifact } from "./patch-artifact.js";
-import { resolve } from "node:path";
-import { readFileSync } from "node:fs";
+import { resolve, join } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 import {
   buildRepoSnapshot,
   type RepoSnapshot,
@@ -117,9 +122,22 @@ import {
 } from "./approval-enforcement.js";
 import { computeDecisionLockHash } from "./decision-lock-hash.js";
 import { computeCapsuleHash } from "./prompt-capsule.js";
+import { computePolicyEvaluationHash } from "./policy-enforcement.js";
+import { verifyAttestationSignature, computeAttestationPayloadHash } from "./runner-attestation.js";
+import { computeBundleHash as computeApprovalBundleHash } from "./approval-bundle.js";
+import { canonicalJson } from "../audit/canonical.js";
+import { sha256Hex } from "./crypto.js";
+import { computeSnapshotHash } from "./repo-snapshot.js";
+import { computeStepPacketHash } from "./step-packet.js";
 import { emitStepPackets as emitStepPacketsCore } from "./step-packet-emit.js";
 import { lintStepPacket } from "./step-packet-lint.js";
 import type { StepPacket } from "./step-packet.js";
+import { validateSealedChangePackage } from "./sealed-change-validate.js";
+import type { SealedChangePackage } from "./sealed-change-package.js";
+import {
+  computeSealedChangePackageHash,
+  validateSealedChangePackageStructure,
+} from "./sealed-change-package.js";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -1487,6 +1505,378 @@ export class SessionManager {
       passed: errors.length === 0,
       errors: errors.sort(),
     };
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase P: Sealed Change Package
+  // -----------------------------------------------------------------------
+
+  /**
+   * Seal session by creating sealed change package.
+   * Requires all prerequisites to be met.
+   *
+   * @param sessionId - Session ID
+   * @param sealedBy - Actor who is sealing the session
+   * @returns Sealed change package
+   */
+  sealSession(
+    sessionId: string,
+    sealedBy: { actorId: string; actorType: "human" | "system" },
+  ): SealedChangePackage {
+    this.requireSession(sessionId);
+
+    // MUST verify gate passed
+    const gateResult = readGateResultJson(this.sessionRoot, sessionId);
+    if (!gateResult || !gateResult.passed) {
+      throw new SessionError(
+        "Cannot seal session: execution gate not passed",
+        "SEAL_INVALID",
+        { sessionId, gatePassed: gateResult?.passed ?? false },
+      );
+    }
+
+    // MUST verify approvals (Phase N)
+    try {
+      this.verifySessionApprovals(sessionId);
+    } catch (error) {
+      if (error instanceof SessionError) {
+        throw new SessionError(
+          `Cannot seal session: approvals not verified: ${error.message}`,
+          "SEAL_INVALID",
+          { sessionId, approvalError: error.message },
+        );
+      }
+      throw error;
+    }
+
+    // MUST verify policies (if they exist)
+    const policyEval = readPolicyEvaluationJson(this.sessionRoot, sessionId);
+    if (policyEval) {
+      if (!policyEval.passed) {
+        throw new SessionError(
+          "Cannot seal session: policy evaluation not passed",
+          "SEAL_INVALID",
+          { sessionId },
+        );
+      }
+    }
+
+    // MUST verify attestation (if it exists)
+    const attestation = readRunnerAttestationJson(this.sessionRoot, sessionId);
+    if (attestation) {
+      const runnerIdentity = readRunnerIdentityJson(this.sessionRoot, sessionId);
+      if (!runnerIdentity) {
+        throw new SessionError(
+          "Cannot seal session: attestation exists but runner identity missing",
+          "SEAL_INVALID",
+          { sessionId },
+        );
+      }
+      try {
+        verifyAttestationSignature(attestation, runnerIdentity);
+      } catch (error) {
+        throw new SessionError(
+          `Cannot seal session: attestation signature invalid: ${String(error)}`,
+          "SEAL_INVALID",
+          { sessionId },
+        );
+      }
+    }
+
+    // MUST verify evidence chain (if evidence exists)
+    const evidenceList = readRunnerEvidenceJson(this.sessionRoot, sessionId) || [];
+    if (evidenceList.length > 0) {
+      const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+      if (plan) {
+        const planLike: ExecutionPlanLike = {
+          sessionId: plan.sessionId as string | undefined,
+          dodId: plan.dodId as string | undefined,
+          lockId: plan.lockId as string | undefined,
+          steps: plan.steps as ExecutionPlanLike["steps"],
+          allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+          ...plan,
+        };
+        try {
+          validateEvidenceChain(evidenceList, planLike);
+        } catch (error) {
+          throw new SessionError(
+            `Cannot seal session: evidence chain invalid: ${String(error)}`,
+            "SEAL_INVALID",
+            { sessionId },
+          );
+        }
+      }
+    }
+
+    // MUST verify patch applicability (if patch apply report exists)
+    const patchReport = readPatchApplyReportJson(this.sessionRoot, sessionId);
+    if (patchReport) {
+      if (!patchReport.applied) {
+        throw new SessionError(
+          "Cannot seal session: patch apply report indicates patches did not apply",
+          "SEAL_INVALID",
+          { sessionId },
+        );
+      }
+    }
+
+    // MUST verify packets
+    const packetValidation = this.validateStepPackets(sessionId);
+    if (!packetValidation.passed) {
+      throw new SessionError(
+        `Cannot seal session: step packets validation failed: ${packetValidation.errors.join("; ")}`,
+        "SEAL_INVALID",
+        { sessionId, errors: packetValidation.errors },
+      );
+    }
+
+    // Load all artifacts
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot seal session: DecisionLock missing",
+        "SEAL_MISSING_DEPENDENCY",
+        { sessionId },
+      );
+    }
+
+    const planJson = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!planJson) {
+      throw new SessionError(
+        "Cannot seal session: ExecutionPlan missing",
+        "SEAL_MISSING_DEPENDENCY",
+        { sessionId },
+      );
+    }
+
+    const plan: ExecutionPlanLike = {
+      sessionId: planJson.sessionId as string | undefined,
+      dodId: planJson.dodId as string | undefined,
+      lockId: planJson.lockId as string | undefined,
+      steps: planJson.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: planJson.allowedCapabilities as string[] | undefined,
+      ...planJson,
+    };
+
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+    if (!capsule) {
+      throw new SessionError(
+        "Cannot seal session: PromptCapsule missing",
+        "SEAL_MISSING_DEPENDENCY",
+        { sessionId },
+      );
+    }
+
+    const snapshot = readRepoSnapshotJson(this.sessionRoot, sessionId);
+    if (!snapshot) {
+      throw new SessionError(
+        "Cannot seal session: RepoSnapshot missing",
+        "SEAL_MISSING_DEPENDENCY",
+        { sessionId },
+      );
+    }
+
+    // Compute core hashes
+    const decisionLockHash = computeDecisionLockHash(lock);
+    const planHash = computePlanHash(plan);
+    const capsuleHash = computeCapsuleHash(capsule);
+    const snapshotHash = computeSnapshotHash(snapshot);
+
+    // Compute optional policy hashes
+    let policySetHash: string | undefined;
+    let policyEvaluationHash: string | undefined;
+    if (policyEval) {
+      policyEvaluationHash = computePolicyEvaluationHash(policyEval);
+      // PolicySet hash would need to be computed from policies array
+      // For now, we'll skip it if the structure is unclear
+    }
+
+    // Compute optional symbol index hash
+    let symbolIndexHash: string | undefined;
+    const symbolIndex = readSymbolIndexJson(this.sessionRoot, sessionId);
+    if (symbolIndex) {
+      symbolIndexHash = sha256Hex(canonicalJson(symbolIndex));
+    }
+
+    // Compute step packet hashes
+    const stepPackets = readAllStepPacketsJson(this.sessionRoot, sessionId);
+    const stepPacketHashes = stepPackets
+      .map((p) => computeStepPacketHash(p))
+      .sort();
+
+    // Compute patch artifact hashes
+    const patchArtifactHashes: string[] = [];
+    if (plan.steps) {
+      for (const step of plan.steps) {
+        const patchPath = join(this.sessionRoot, sessionId, `patch-${step.stepId}.json`);
+        if (existsSync(patchPath)) {
+          const patch: PatchArtifact = JSON.parse(readFileSync(patchPath, "utf8"));
+          const patchHash = sha256Hex(canonicalJson(patch));
+          patchArtifactHashes.push(patchHash);
+        }
+      }
+    }
+    patchArtifactHashes.sort();
+
+    // Compute patch apply report hash (optional)
+    let patchApplyReportHash: string | undefined;
+    if (patchReport) {
+      patchApplyReportHash = patchReport.reportHash;
+    }
+
+    // Compute reviewer report hashes
+    const reviewerReportHashes: string[] = [];
+    if (plan.steps) {
+      for (const step of plan.steps) {
+        const reports = readReviewerReports(this.sessionRoot, sessionId, step.stepId);
+        for (const report of reports) {
+          const reportHash = sha256Hex(canonicalJson(report));
+          reviewerReportHashes.push(reportHash);
+        }
+      }
+    }
+    reviewerReportHashes.sort();
+
+    // Compute evidence chain hashes
+    const evidenceChainHashes = (evidenceList || [])
+      .map((e) => computeEvidenceHash(e))
+      .sort();
+
+    // Compute optional runner identity hash
+    let runnerIdentityHash: string | undefined;
+    const runnerIdentity = readRunnerIdentityJson(this.sessionRoot, sessionId);
+    if (runnerIdentity) {
+      runnerIdentityHash = sha256Hex(canonicalJson(runnerIdentity));
+    }
+
+    // Compute optional attestation hash
+    let attestationHash: string | undefined;
+    if (attestation) {
+      attestationHash = computeAttestationPayloadHash(attestation);
+    }
+
+    // Compute optional approval hashes
+    let approvalPolicyHash: string | undefined;
+    const approvalPolicy = readApprovalPolicyJson(this.sessionRoot, sessionId);
+    if (approvalPolicy) {
+      approvalPolicyHash = sha256Hex(canonicalJson(approvalPolicy));
+    }
+
+    let approvalBundleHash: string | undefined;
+    const approvalBundle = readApprovalBundleJson(this.sessionRoot, sessionId);
+    if (approvalBundle) {
+      approvalBundleHash = computeApprovalBundleHash(approvalBundle);
+    }
+
+    // Compute optional anchor hash
+    let anchorHash: string | undefined;
+    const anchor = readSessionAnchorJson(this.sessionRoot, sessionId);
+    if (anchor) {
+      anchorHash = sha256Hex(canonicalJson(anchor));
+    }
+
+    // Build SCP (without packageHash)
+    const scpData: Omit<SealedChangePackage, "packageHash"> = {
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      sessionId,
+      sealedAt: new Date().toISOString(),
+      sealedBy,
+      decisionLockHash,
+      planHash,
+      capsuleHash,
+      snapshotHash,
+      stepPacketHashes,
+      patchArtifactHashes,
+      reviewerReportHashes,
+      evidenceChainHashes,
+      packageHash: "", // Will be computed
+    };
+
+    // Add optional fields
+    if (policySetHash) {
+      scpData.policySetHash = policySetHash;
+    }
+    if (policyEvaluationHash) {
+      scpData.policyEvaluationHash = policyEvaluationHash;
+    }
+    if (symbolIndexHash) {
+      scpData.symbolIndexHash = symbolIndexHash;
+    }
+    if (patchApplyReportHash) {
+      scpData.patchApplyReportHash = patchApplyReportHash;
+    }
+    if (runnerIdentityHash) {
+      scpData.runnerIdentityHash = runnerIdentityHash;
+    }
+    if (attestationHash) {
+      scpData.attestationHash = attestationHash;
+    }
+    if (approvalPolicyHash) {
+      scpData.approvalPolicyHash = approvalPolicyHash;
+    }
+    if (approvalBundleHash) {
+      scpData.approvalBundleHash = approvalBundleHash;
+    }
+    if (anchorHash) {
+      scpData.anchorHash = anchorHash;
+    }
+
+    // Compute package hash
+    const packageHash = computeSealedChangePackageHash(scpData as SealedChangePackage);
+
+    // Build final SCP
+    const scp: SealedChangePackage = {
+      ...scpData,
+      packageHash,
+    } as SealedChangePackage;
+
+    // Validate structure
+    validateSealedChangePackageStructure(scp);
+
+    // Persist
+    writeSealedChangePackageJson(this.sessionRoot, sessionId, scp);
+
+    return scp;
+  }
+
+  /**
+   * Validate session seal.
+   *
+   * @param sessionId - Session ID
+   * @returns Validation result with passed flag and errors
+   */
+  validateSessionSeal(sessionId: string): {
+    passed: boolean;
+    errors: string[];
+  } {
+    this.requireSession(sessionId);
+
+    const scp = readSealedChangePackageJson(this.sessionRoot, sessionId);
+    if (!scp) {
+      return {
+        passed: false,
+        errors: ["Sealed change package not found"],
+      };
+    }
+
+    try {
+      validateSealedChangePackage(sessionId, this.sessionRoot);
+      return {
+        passed: true,
+        errors: [],
+      };
+    } catch (error) {
+      if (error instanceof SessionError) {
+        return {
+          passed: false,
+          errors: [error.message],
+        };
+      }
+      return {
+        passed: false,
+        errors: [String(error)],
+      };
+    }
   }
 
   // -----------------------------------------------------------------------

@@ -328,6 +328,23 @@ export {
   readPacketReceiptJson,
 } from "./persistence.js";
 
+// Phase P: Sealed Change Package
+export {
+  SealedChangePackageSchema,
+  computeSealedChangePackageHash,
+  validateSealedChangePackageStructure,
+  type SealedChangePackage,
+} from "./sealed-change-package.js";
+
+export {
+  validateSealedChangePackage,
+} from "./sealed-change-validate.js";
+
+export {
+  writeSealedChangePackageJson,
+  readSealedChangePackageJson,
+} from "./persistence.js";
+
 // Phase N: Quorum Signatures for Approval Artifacts
 export {
   computeDecisionLockHash,

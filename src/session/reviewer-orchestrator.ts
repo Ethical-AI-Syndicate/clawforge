@@ -13,10 +13,12 @@ import { PatchArtifactSchema, type PatchArtifact } from "./patch-artifact.js";
 import {
   REVIEWER_ROLES,
   type ReviewerReport,
+  type ReviewerRole,
 } from "./reviewer-contract.js";
 import { getRulesForRole } from "./reviewer-rules.js";
 import type { DefinitionOfDone, DecisionLock } from "./schemas.js";
 import { SESSION_SCHEMA_VERSION } from "./schemas.js";
+import { isRoleAllowedForCapability } from "./capabilities.js";
 
 // ---------------------------------------------------------------------------
 // Input / Output types
@@ -108,7 +110,22 @@ export function reviewStep(input: ReviewStepInput): ReviewStepResult {
     }
   }
 
-  // 7. Run each reviewer in sequence
+  // 7. Phase G: Reviewer capability isolation enforcement
+  const envelopeCapabilities = envelope.allowedCapabilities ?? [];
+  for (const role of envelope.reviewerSequence) {
+    const reviewerRole = role as ReviewerRole;
+    for (const capId of envelopeCapabilities) {
+      if (!isRoleAllowedForCapability(reviewerRole, capId)) {
+        throw new SessionError(
+          `Reviewer role "${reviewerRole}" is not allowed for capability "${capId}"`,
+          "REVIEWER_FAILED",
+          { role: reviewerRole, capability: capId },
+        );
+      }
+    }
+  }
+
+  // 8. Run each reviewer in sequence
   const reports: ReviewerReport[] = [];
 
   for (const role of envelope.reviewerSequence) {
@@ -139,6 +156,6 @@ export function reviewStep(input: ReviewStepInput): ReviewStepResult {
     }
   }
 
-  // 8. All passed
+  // 9. All passed
   return { passed: true, reports };
 }

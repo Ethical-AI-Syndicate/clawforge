@@ -8,6 +8,10 @@
 
 import type { DefinitionOfDone } from "./schemas.js";
 import { SessionError } from "./errors.js";
+import {
+  CAPABILITY_REGISTRY,
+  isCapabilityRegistered,
+} from "./capabilities.js";
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -97,6 +101,7 @@ const REQUIRED_GUARANTEE_KEYS = [
 interface PlanStep {
   stepId?: string;
   references?: unknown;
+  requiredCapabilities?: string[];
   [key: string]: unknown;
 }
 
@@ -104,6 +109,7 @@ interface ExecutionPlanLike {
   steps?: unknown[];
   nonExecutableGuarantees?: Record<string, unknown>;
   completionCriteria?: unknown[];
+  allowedCapabilities?: string[];
   [key: string]: unknown;
 }
 
@@ -263,6 +269,95 @@ export function lintExecutionPlan(
           "EXECUTION_PLAN_LINT_FAILED",
           { index: j, id },
         );
+      }
+    }
+  }
+
+  // 6. Phase G: Capability validation
+  const allowedCapabilities = planObj.allowedCapabilities;
+  if (allowedCapabilities !== undefined) {
+    // allowedCapabilities must be an array
+    if (!Array.isArray(allowedCapabilities)) {
+      throw new SessionError(
+        "Execution plan allowedCapabilities must be an array",
+        "EXECUTION_PLAN_LINT_FAILED",
+        {},
+      );
+    }
+
+    // Check for duplicates
+    const seen = new Set<string>();
+    for (const cap of allowedCapabilities) {
+      if (typeof cap !== "string") {
+        throw new SessionError(
+          "Execution plan allowedCapabilities must contain only strings",
+          "EXECUTION_PLAN_LINT_FAILED",
+          { capability: cap },
+        );
+      }
+      if (seen.has(cap)) {
+        throw new SessionError(
+          `Duplicate capability in allowedCapabilities: ${cap}`,
+          "EXECUTION_PLAN_LINT_FAILED",
+          { capability: cap },
+        );
+      }
+      seen.add(cap);
+
+      // Each capability must be in registry
+      if (!isCapabilityRegistered(cap)) {
+        throw new SessionError(
+          `Unknown capability in allowedCapabilities: ${cap}. Capability must be declared in CAPABILITY_REGISTRY`,
+          "EXECUTION_PLAN_LINT_FAILED",
+          { capability: cap },
+        );
+      }
+    }
+  }
+
+  // 7. Phase G: Step capability validation
+  const planAllowedSet = new Set(allowedCapabilities ?? []);
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i] as PlanStep;
+    const stepRequired = step.requiredCapabilities;
+
+    if (stepRequired !== undefined) {
+      // requiredCapabilities must be an array
+      if (!Array.isArray(stepRequired)) {
+        throw new SessionError(
+          `Step ${step.stepId ?? i} requiredCapabilities must be an array`,
+          "EXECUTION_PLAN_LINT_FAILED",
+          { stepIndex: i, stepId: step.stepId },
+        );
+      }
+
+      // Check for duplicates
+      const stepSeen = new Set<string>();
+      for (const cap of stepRequired) {
+        if (typeof cap !== "string") {
+          throw new SessionError(
+            `Step ${step.stepId ?? i} requiredCapabilities must contain only strings`,
+            "EXECUTION_PLAN_LINT_FAILED",
+            { stepIndex: i, stepId: step.stepId, capability: cap },
+          );
+        }
+        if (stepSeen.has(cap)) {
+          throw new SessionError(
+            `Duplicate capability in step ${step.stepId ?? i} requiredCapabilities: ${cap}`,
+            "EXECUTION_PLAN_LINT_FAILED",
+            { stepIndex: i, stepId: step.stepId, capability: cap },
+          );
+        }
+        stepSeen.add(cap);
+
+        // Each step capability must be in plan allowedCapabilities
+        if (!planAllowedSet.has(cap)) {
+          throw new SessionError(
+            `Step ${step.stepId ?? i} requiredCapability "${cap}" is not in plan allowedCapabilities`,
+            "EXECUTION_PLAN_LINT_FAILED",
+            { stepIndex: i, stepId: step.stepId, capability: cap },
+          );
+        }
       }
     }
   }

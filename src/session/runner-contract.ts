@@ -65,6 +65,10 @@ export const RunnerEvidenceSchema = z
     verificationMetadata: z.record(z.string(), z.unknown()),
     capabilityUsed: z.string().min(1).max(200),
     humanConfirmationProof: z.string().min(1).max(2000),
+    // Phase F: tamper-evident chain fields (optional in schema, required for Phase F validation)
+    planHash: sha256Hex.optional(),
+    prevEvidenceHash: sha256Hex.nullable().optional(),
+    evidenceHash: sha256Hex.optional(),
   })
   .passthrough();
 

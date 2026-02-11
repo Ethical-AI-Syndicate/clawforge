@@ -268,3 +268,29 @@ export {
   writeSymbolValidationJson,
   readSymbolValidationJson,
 } from "./persistence.js";
+
+// Phase M: Repo Snapshot and Patch Applicability Proof
+export {
+  buildRepoSnapshot,
+  computeSnapshotHash,
+  findFileSnapshot,
+  getFileContentHash,
+  type RepoSnapshot,
+  type FileSnapshot,
+  type BuildRepoSnapshotOptions,
+} from "./repo-snapshot.js";
+
+export {
+  provePatchApplies,
+  type PatchApplyReport,
+  type TouchedFile,
+  type Conflict,
+  type ProvePatchAppliesOptions,
+} from "./patch-apply.js";
+
+export {
+  writeRepoSnapshotJson,
+  readRepoSnapshotJson,
+  writePatchApplyReportJson,
+  readPatchApplyReportJson,
+} from "./persistence.js";

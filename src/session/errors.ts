@@ -50,7 +50,12 @@ export type SessionErrorCode =
   | "SYMBOL_INDEX_INVALID"
   | "SYMBOL_VALIDATION_FAILED"
   | "SYMBOL_RESOLUTION_FAILED"
-  | "SYMBOL_EXPORT_VIOLATION";
+  | "SYMBOL_EXPORT_VIOLATION"
+  | "REPO_SNAPSHOT_INVALID"
+  | "SNAPSHOT_HASH_MISSING"
+  | "SNAPSHOT_HASH_MISMATCH"
+  | "PATCH_APPLY_FAILED"
+  | "PATCH_BASE_MISMATCH";
 
 export class SessionError extends Error {
   public readonly code: SessionErrorCode;

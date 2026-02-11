@@ -30,6 +30,8 @@ import type { PromptCapsule } from "./prompt-capsule.js";
 import type { ModelResponseArtifact } from "./model-response.js";
 import type { SymbolIndex } from "./symbol-index.js";
 import type { SymbolValidationResult } from "./symbol-validate.js";
+import type { RepoSnapshot } from "./repo-snapshot.js";
+import type { PatchApplyReport } from "./patch-apply.js";
 
 // ---------------------------------------------------------------------------
 // Session metadata (what gets written to session.json)
@@ -651,4 +653,64 @@ export function readSymbolValidationJson(
     return undefined;
   }
   return JSON.parse(readFileSync(filePath, "utf8")) as SymbolValidationResult;
+}
+
+// ---------------------------------------------------------------------------
+// Phase M: Repo Snapshot persistence
+// ---------------------------------------------------------------------------
+
+export function writeRepoSnapshotJson(
+  sessionRoot: string,
+  sessionId: string,
+  snapshot: RepoSnapshot,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "repo-snapshot.json"),
+    canonicalJson(snapshot),
+    "utf8",
+  );
+}
+
+export function readRepoSnapshotJson(
+  sessionRoot: string,
+  sessionId: string,
+): RepoSnapshot | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "repo-snapshot.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as RepoSnapshot;
+}
+
+// ---------------------------------------------------------------------------
+// Phase M: Patch Apply Report persistence
+// ---------------------------------------------------------------------------
+
+export function writePatchApplyReportJson(
+  sessionRoot: string,
+  sessionId: string,
+  report: PatchApplyReport,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "patch-apply-report.json"),
+    canonicalJson(report),
+    "utf8",
+  );
+}
+
+export function readPatchApplyReportJson(
+  sessionRoot: string,
+  sessionId: string,
+): PatchApplyReport | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "patch-apply-report.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as PatchApplyReport;
 }

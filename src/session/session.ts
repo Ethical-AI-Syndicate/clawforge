@@ -41,6 +41,9 @@ import {
   writeSymbolIndexJson,
   readSymbolIndexJson,
   writeSymbolValidationJson,
+  writeRepoSnapshotJson,
+  readRepoSnapshotJson,
+  writePatchApplyReportJson,
   type SessionRecord,
 } from "./persistence.js";
 import {
@@ -78,6 +81,16 @@ import {
 import type { PatchArtifact } from "./patch-artifact.js";
 import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
+import {
+  buildRepoSnapshot,
+  type RepoSnapshot,
+  type BuildRepoSnapshotOptions,
+} from "./repo-snapshot.js";
+import {
+  provePatchApplies,
+  type PatchApplyReport,
+  type ProvePatchAppliesOptions,
+} from "./patch-apply.js";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -882,6 +895,130 @@ export class SessionManager {
     }
 
     return result;
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase M: Repo Snapshot and Patch Applicability Proof
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record repo snapshot for a session.
+   *
+   * @param sessionId - Session ID
+   * @param options - Build options
+   * @returns The recorded snapshot
+   */
+  recordRepoSnapshot(
+    sessionId: string,
+    options: BuildRepoSnapshotOptions,
+  ): RepoSnapshot {
+    this.requireSession(sessionId);
+
+    const snapshot = buildRepoSnapshot(options);
+    writeRepoSnapshotJson(this.sessionRoot, sessionId, snapshot);
+
+    return snapshot;
+  }
+
+  /**
+   * Prove patch applies to snapshot.
+   *
+   * @param sessionId - Session ID
+   * @param patchArtifact - Patch artifact to prove
+   * @param projectRoot - Project root directory
+   * @param options - Optional prove options
+   * @returns Patch apply report
+   */
+  provePatchAppliesToSnapshot(
+    sessionId: string,
+    patchArtifact: PatchArtifact | string,
+    projectRoot: string,
+    options?: Partial<ProvePatchAppliesOptions>,
+  ): PatchApplyReport {
+    this.requireSession(sessionId);
+
+    // Load required artifacts
+    const snapshot = readRepoSnapshotJson(this.sessionRoot, sessionId);
+    if (!snapshot) {
+      throw new SessionError(
+        "Cannot prove patch: no repo snapshot exists",
+        "SNAPSHOT_HASH_MISSING",
+        { sessionId },
+      );
+    }
+
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+    if (!capsule) {
+      throw new SessionError(
+        "Cannot prove patch: no prompt capsule exists",
+        "PROMPT_CAPSULE_INVALID",
+        { sessionId },
+      );
+    }
+
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot prove patch: no Decision Lock exists",
+        "LOCK_MISSING",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan) {
+      throw new SessionError(
+        "Cannot prove patch: no execution plan exists",
+        "EXECUTION_PLAN_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    // Load patch artifact if it's a path
+    let patch: PatchArtifact;
+    if (typeof patchArtifact === "string") {
+      const patchContent = readFileSync(patchArtifact, "utf8");
+      patch = JSON.parse(patchContent) as PatchArtifact;
+    } else {
+      patch = patchArtifact;
+    }
+
+    // Validate patch files are in allowedFiles
+    const allowedFilesSet = new Set(capsule.boundaries.allowedFiles);
+    for (const fileChange of patch.filesChanged) {
+      if (!allowedFilesSet.has(fileChange.path)) {
+        throw new SessionError(
+          `Patch file "${fileChange.path}" is not in allowedFiles`,
+          "BOUNDARY_VIOLATION",
+          { sessionId, filePath: fileChange.path },
+        );
+      }
+    }
+
+    // Build prove options
+    const proveOptions: ProvePatchAppliesOptions = {
+      projectRoot,
+      allowDeletes: options?.allowDeletes ?? false,
+      allowedFiles: capsule.boundaries.allowedFiles,
+      ...options,
+    };
+
+    // Prove patch applies
+    const report = provePatchApplies(patch, snapshot, proveOptions);
+
+    // Write report
+    writePatchApplyReportJson(this.sessionRoot, sessionId, report);
+
+    // Throw if patch doesn't apply
+    if (!report.applied) {
+      throw new SessionError(
+        `Patch application proof failed: ${report.conflicts.map((c) => c.reason).join("; ")}`,
+        "PATCH_APPLY_FAILED",
+        { sessionId, conflicts: report.conflicts },
+      );
+    }
+
+    return report;
   }
 
   // -----------------------------------------------------------------------

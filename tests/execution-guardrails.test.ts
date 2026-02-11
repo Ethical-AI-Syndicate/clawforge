@@ -68,6 +68,42 @@ describe("Execution guardrails — no execution surface in session layer", () =>
     }
   });
 
+  it("only node:crypto is allowed for cryptographic operations (no other execution/network modules)", () => {
+    const ALLOWED_CRYPTO = ['"node:crypto"', "'node:crypto'", 'from "node:crypto"', "from 'node:crypto'"];
+    const FORBIDDEN_NETWORK = [
+      '"undici"', "'undici'", 'from "undici"', "from 'undici'",
+      '"axios"', "'axios'", 'from "axios"', "from 'axios'",
+      '"fetch"', "'fetch'", 'from "fetch"', "from 'fetch'",
+      'require("undici"', "require('undici'",
+      'require("axios"', "require('axios'",
+      'require("fetch"', "require('fetch'",
+    ];
+    
+    for (const file of getSessionFiles()) {
+      const content = readFileSync(join(SESSION_SRC, file), "utf8");
+      
+      // Check for forbidden network/execution modules
+      for (const mod of FORBIDDEN_NETWORK) {
+        expect(
+          content.includes(mod),
+          `${file} must not import ${mod}`,
+        ).toBe(false);
+      }
+      
+      // If crypto is used directly (not via local import), it must be node:crypto
+      // Allow imports from local crypto modules (e.g., "./crypto.js")
+      const hasLocalCryptoImport = content.includes('from "./crypto') || content.includes("from './crypto");
+      if (content.includes("crypto") && !hasLocalCryptoImport) {
+        const hasAllowedCrypto = ALLOWED_CRYPTO.some((allowed) => content.includes(allowed));
+        if (!hasAllowedCrypto) {
+          expect.fail(
+            `${file} uses crypto but must use node:crypto (not require('crypto') or other variants)`,
+          );
+        }
+      }
+    }
+  });
+
   it("no session module uses eval or new Function", () => {
     for (const file of getSessionFiles()) {
       const content = readFileSync(join(SESSION_SRC, file), "utf8");
@@ -110,6 +146,54 @@ describe("Execution guardrails — no execution surface in session layer", () =>
           content.includes(token),
           `dist/session/${file} must not contain ${token}`,
         ).toBe(false);
+      }
+    }
+  });
+
+  it("Phase K modules (prompt-capsule, model-response, symbol-boundary, prompt-lint) have no execution surfaces", () => {
+    const phaseKFiles = [
+      "prompt-capsule.ts",
+      "model-response.ts",
+      "symbol-boundary.ts",
+      "prompt-lint.ts",
+    ];
+    
+    for (const fileName of phaseKFiles) {
+      const filePath = join(SESSION_SRC, fileName);
+      try {
+        const content = readFileSync(filePath, "utf8");
+        
+        // Check for forbidden patterns
+        for (const token of FORBIDDEN) {
+          expect(
+            content.includes(token),
+            `Phase K module ${fileName} must not contain ${token}`,
+          ).toBe(false);
+        }
+        
+        // Check for network modules
+        for (const mod of ['"http"', "'http'", '"https"', "'https'", '"net"', "'net'"]) {
+          expect(
+            content.includes(mod),
+            `Phase K module ${fileName} must not import ${mod}`,
+          ).toBe(false);
+        }
+        
+        // Check for eval/new Function
+        expect(
+          content.includes("eval("),
+          `Phase K module ${fileName} must not use eval`,
+        ).toBe(false);
+        expect(
+          content.includes("new Function("),
+          `Phase K module ${fileName} must not use new Function`,
+        ).toBe(false);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+          // File doesn't exist yet (might be during development)
+          continue;
+        }
+        throw e;
       }
     }
   });

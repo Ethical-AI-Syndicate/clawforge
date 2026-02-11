@@ -34,6 +34,10 @@ import {
   readRunnerEvidenceJson,
   writeRunnerEvidenceJson,
   readExecutionPlanJson,
+  writePromptCapsuleJson,
+  readPromptCapsuleJson,
+  writeModelResponseJson,
+  readModelResponseJson,
   type SessionRecord,
 } from "./persistence.js";
 import {
@@ -42,6 +46,23 @@ import {
   type ExecutionPlanLike,
 } from "./evidence-validation.js";
 import { RunnerEvidenceSchema, type RunnerEvidence } from "./runner-contract.js";
+import { validatePlanHashBinding, computePlanHash } from "./plan-hash.js";
+import {
+  computeEvidenceHash,
+  validateEvidenceChain,
+} from "./evidence-chain.js";
+import { validateSessionBoundary } from "./session-boundary.js";
+import {
+  readSessionAnchorJson,
+  readRunnerIdentityJson,
+  readRunnerAttestationJson,
+} from "./persistence.js";
+import type { Policy } from "./policy.js";
+import type { SessionContext } from "./policy-engine.js";
+import { validatePolicies, type PolicyValidationResult } from "./policy-enforcement.js";
+import type { PromptCapsule } from "./prompt-capsule.js";
+import type { ModelResponseArtifact } from "./model-response.js";
+import { lintPromptCapsule, lintModelResponse } from "./prompt-lint.js";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -427,6 +448,15 @@ export class SessionManager {
       );
     }
 
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot record evidence: no Decision Lock exists",
+        "LOCK_MISSING",
+        { sessionId },
+      );
+    }
+
     const recorded = readRunnerEvidenceJson(this.sessionRoot, sessionId) ?? [];
     const planLike: ExecutionPlanLike = {
       sessionId: plan.sessionId as string | undefined,
@@ -436,6 +466,9 @@ export class SessionManager {
       allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
       ...plan,
     };
+
+    // Phase F: Validate plan hash binding
+    validatePlanHashBinding(planLike, lock);
 
     const result = validateRunnerEvidence(
       evidence,
@@ -453,9 +486,47 @@ export class SessionManager {
     }
 
     const parsed = RunnerEvidenceSchema.parse(evidence) as RunnerEvidence;
-    const next = [...recorded, parsed];
+    
+    // Phase F: Compute and attach chain fields if not present
+    const planHash = computePlanHash(planLike);
+    const lastEvidence = recorded.length > 0 ? recorded[recorded.length - 1] : null;
+    const prevHash =
+      lastEvidence && (lastEvidence as Record<string, unknown>).evidenceHash
+        ? (lastEvidence as Record<string, unknown>).evidenceHash as string
+        : null;
+    
+    // Ensure planHash is set
+    const evidenceWithPlanHash: RunnerEvidence = {
+      ...parsed,
+      planHash: parsed.planHash ?? planHash,
+      prevEvidenceHash: parsed.prevEvidenceHash ?? prevHash,
+    };
+    
+    // Compute evidenceHash
+    const evidenceHash = computeEvidenceHash(evidenceWithPlanHash);
+    const evidenceWithHash: RunnerEvidence = {
+      ...evidenceWithPlanHash,
+      evidenceHash,
+    };
+    
+    const next = [...recorded, evidenceWithHash];
+    
+    // Phase F: Validate chain after append
+    validateEvidenceChain(next, planLike);
+    
+    // Phase G: Validate session boundary
+    const anchor = readSessionAnchorJson(this.sessionRoot, sessionId) ?? undefined;
+    validateSessionBoundary({
+      sessionId,
+      dod,
+      decisionLock: lock,
+      executionPlan: planLike,
+      runnerEvidence: next,
+      anchor,
+    });
+    
     writeRunnerEvidenceJson(this.sessionRoot, sessionId, next);
-    return parsed;
+    return evidenceWithHash;
   }
 
   // -----------------------------------------------------------------------
@@ -486,6 +557,198 @@ export class SessionManager {
       recorded,
       gatePassed,
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // validateSessionPolicies
+  // -----------------------------------------------------------------------
+
+  /**
+   * Validate session against policies.
+   *
+   * @param sessionId - Session ID
+   * @param policies - Policies to evaluate
+   * @returns Policy validation result
+   */
+  validateSessionPolicies(
+    sessionId: string,
+    policies: Policy[],
+  ): PolicyValidationResult {
+    this.requireSession(sessionId);
+
+    // Build session context from persisted artifacts
+    const dod = readDoDJson(this.sessionRoot, sessionId);
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    const evidence = readRunnerEvidenceJson(this.sessionRoot, sessionId) ?? [];
+    const identity = readRunnerIdentityJson(this.sessionRoot, sessionId);
+    const attestation = readRunnerAttestationJson(this.sessionRoot, sessionId);
+    const anchor = readSessionAnchorJson(this.sessionRoot, sessionId);
+
+    const planLike: ExecutionPlanLike | undefined = plan
+      ? {
+          sessionId: plan.sessionId as string | undefined,
+          dodId: plan.dodId as string | undefined,
+          lockId: plan.lockId as string | undefined,
+          steps: plan.steps as ExecutionPlanLike["steps"],
+          allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+          ...plan,
+        }
+      : undefined;
+
+    const context: SessionContext = {
+      dod: dod ?? undefined,
+      decisionLock: lock ?? undefined,
+      executionPlan: planLike,
+      evidenceChain: evidence.length > 0 ? evidence : undefined,
+      runnerIdentity: identity ?? undefined,
+      runnerAttestation: attestation ?? undefined,
+      anchor: anchor ?? undefined,
+    };
+
+    return validatePolicies(context, policies);
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase K: Prompt Capsule recording
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record a prompt capsule after validation.
+   * This is validation-only; no execution authority changes.
+   *
+   * @param sessionId - Session ID
+   * @param capsule - Prompt capsule to record
+   * @param actor - Actor creating the capsule
+   * @returns The recorded capsule
+   */
+  recordPromptCapsule(
+    sessionId: string,
+    capsule: PromptCapsule,
+    actor: Actor,
+  ): PromptCapsule {
+    this.requireSession(sessionId);
+
+    // Load required artifacts for linting
+    const dod = readDoDJson(this.sessionRoot, sessionId);
+    if (!dod) {
+      throw new SessionError(
+        "Cannot record prompt capsule: no Definition of Done exists",
+        "DOD_MISSING",
+        { sessionId },
+      );
+    }
+
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot record prompt capsule: no Decision Lock exists",
+        "LOCK_MISSING",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan) {
+      throw new SessionError(
+        "Cannot record prompt capsule: no execution plan exists",
+        "EXECUTION_PLAN_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    // Lint the capsule
+    lintPromptCapsule(capsule, dod, lock, planLike);
+
+    // Write capsule
+    writePromptCapsuleJson(this.sessionRoot, sessionId, capsule);
+
+    return capsule;
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase K: Model Response recording
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record a model response after validation against capsule boundaries.
+   * This is validation-only; no execution authority changes.
+   *
+   * @param sessionId - Session ID
+   * @param response - Model response artifact to record
+   * @param actor - Actor creating the response
+   * @returns The recorded response
+   */
+  recordModelResponse(
+    sessionId: string,
+    response: ModelResponseArtifact,
+    actor: Actor,
+  ): ModelResponseArtifact {
+    this.requireSession(sessionId);
+
+    // Load capsule
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+    if (!capsule) {
+      throw new SessionError(
+        "Cannot record model response: no prompt capsule exists",
+        "PROMPT_CAPSULE_INVALID",
+        { sessionId },
+      );
+    }
+
+    // Load required artifacts for linting
+    const dod = readDoDJson(this.sessionRoot, sessionId);
+    if (!dod) {
+      throw new SessionError(
+        "Cannot record model response: no Definition of Done exists",
+        "DOD_MISSING",
+        { sessionId },
+      );
+    }
+
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot record model response: no Decision Lock exists",
+        "LOCK_MISSING",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan) {
+      throw new SessionError(
+        "Cannot record model response: no execution plan exists",
+        "EXECUTION_PLAN_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    // Lint the response
+    lintModelResponse(response, capsule, dod, lock, planLike);
+
+    // Write response
+    writeModelResponseJson(this.sessionRoot, sessionId, response);
+
+    return response;
   }
 
   // -----------------------------------------------------------------------

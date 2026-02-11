@@ -34,6 +34,8 @@ export {
   readExecutionPlanJson,
   writeReviewerReportJson,
   readReviewerReports,
+  writeSessionAnchorJson,
+  readSessionAnchorJson,
   type SessionRecord,
 } from "./persistence.js";
 
@@ -55,6 +57,8 @@ export {
   type ExecutionPlanStep,
   type ExecutionPlanLike,
 } from "./evidence-validation.js";
+
+export { emitRunnerEvidenceTemplate } from "./evidence-template.js";
 
 export {
   StepEnvelopeSchema,
@@ -89,3 +93,156 @@ export {
   type ReviewStepInput,
   type ReviewStepResult,
 } from "./reviewer-orchestrator.js";
+
+// Phase F: Plan hash and evidence chain validation
+export {
+  sha256Hex,
+} from "./crypto.js";
+
+export {
+  canonicalize,
+  normalizeExecutionPlan,
+  normalizeRunnerEvidence,
+} from "./canonical.js";
+
+export {
+  computePlanHash,
+  validatePlanHashBinding,
+} from "./plan-hash.js";
+
+export {
+  computeEvidenceHash,
+  validateEvidenceChain,
+} from "./evidence-chain.js";
+
+export {
+  SessionAnchorSchema,
+  validateAnchor,
+  type SessionAnchor,
+} from "./session-anchor.js";
+
+// Phase G: Capability model and authority isolation
+export {
+  CAPABILITY_REGISTRY,
+  getCapability,
+  isCapabilityRegistered,
+  getAllCapabilityIds,
+  isRoleAllowedForCapability,
+  requiresHumanConfirmation,
+  type CapabilityDefinition,
+  type CapabilityCategory,
+  type CapabilityRiskLevel,
+} from "./capabilities.js";
+
+export {
+  validateSessionBoundary,
+  type SessionBoundaryInput,
+} from "./session-boundary.js";
+
+// Phase H: Runner attestation and identity
+export {
+  RunnerIdentitySchema,
+  validateRunnerIdentity,
+  computeIdentityHash,
+  type RunnerIdentity,
+} from "./runner-identity.js";
+
+export {
+  RunnerAttestationSchema,
+  validateAttestation,
+  verifyAttestationSignature,
+  computeAttestationPayloadHash,
+  type RunnerAttestation,
+  type AttestationValidationInput,
+} from "./runner-attestation.js";
+
+export {
+  writeRunnerAttestationJson,
+  readRunnerAttestationJson,
+  writeRunnerIdentityJson,
+  readRunnerIdentityJson,
+  readUsedNoncesJson,
+  writeUsedNoncesJson,
+  appendNonce,
+} from "./persistence.js";
+
+// Phase I: Policy-as-Code governance
+export {
+  PolicySchema,
+  PolicyRuleSchema,
+  PolicyConditionSchema,
+  validatePolicy,
+  type Policy,
+  type PolicyRule,
+  type PolicyCondition,
+} from "./policy.js";
+
+export {
+  evaluatePolicy,
+  resolveFieldPath,
+  type SessionContext,
+  type PolicyEvaluationResult,
+  type RuleEvaluationResult,
+} from "./policy-engine.js";
+
+export {
+  validatePolicies,
+  computePolicySetHash,
+  computePolicyEvaluationHash,
+  type PolicyValidationResult,
+} from "./policy-enforcement.js";
+
+export {
+  writePolicyJson,
+  readPolicyJson,
+  readAllPoliciesJson,
+  writePolicyEvaluationJson,
+  readPolicyEvaluationJson,
+} from "./persistence.js";
+
+// Phase J: Deterministic reproducibility
+export {
+  ArtifactBundleSchema,
+  validateBundle,
+  computeBundleHash,
+  type ArtifactBundle,
+} from "./bundle.js";
+
+export {
+  replaySession,
+  type ReplayResult,
+} from "./replay.js";
+
+// Phase K: Prompt Capsules and Model Response Artifacts
+export {
+  PromptCapsuleSchema,
+  computeCapsuleHash,
+  type PromptCapsule,
+} from "./prompt-capsule.js";
+
+export {
+  ModelResponseArtifactSchema,
+  ChangeProposalSchema,
+  CitationSchema,
+  computeResponseHash,
+  type ModelResponseArtifact,
+  type ChangeProposal,
+  type Citation,
+} from "./model-response.js";
+
+export {
+  lintPromptCapsule,
+  lintModelResponse,
+} from "./prompt-lint.js";
+
+export {
+  extractReferencedFilePathsFromPatch,
+  extractSymbolMentions,
+} from "./symbol-boundary.js";
+
+export {
+  writePromptCapsuleJson,
+  readPromptCapsuleJson,
+  writeModelResponseJson,
+  readModelResponseJson,
+} from "./persistence.js";

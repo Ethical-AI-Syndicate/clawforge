@@ -50,6 +50,11 @@ import {
   readApprovalBundleJson,
   readUsedApprovalNoncesJson,
   appendApprovalNonce,
+  writeStepPacketJson,
+  readStepPacketJson,
+  readAllStepPacketsJson,
+  writePacketReceiptJson,
+  readPacketReceiptJson,
   type SessionRecord,
 } from "./persistence.js";
 import {
@@ -112,6 +117,9 @@ import {
 } from "./approval-enforcement.js";
 import { computeDecisionLockHash } from "./decision-lock-hash.js";
 import { computeCapsuleHash } from "./prompt-capsule.js";
+import { emitStepPackets as emitStepPacketsCore } from "./step-packet-emit.js";
+import { lintStepPacket } from "./step-packet-lint.js";
+import type { StepPacket } from "./step-packet.js";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -1258,6 +1266,227 @@ export class SessionManager {
     }
 
     return result;
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase O: Step Packet Emission and Validation
+  // -----------------------------------------------------------------------
+
+  /**
+   * Emit step packets for all steps in execution plan.
+   * Requires gate passed and approvals verified.
+   *
+   * @param sessionId - Session ID
+   * @param projectRoot - Project root directory (optional, uses default if not provided)
+   * @returns Array of emitted packets (sorted by stepId)
+   */
+  emitStepPackets(sessionId: string, projectRoot?: string): StepPacket[] {
+    this.requireSession(sessionId);
+
+    // MUST verify gate passed
+    const gateResult = readGateResultJson(this.sessionRoot, sessionId);
+    if (!gateResult || !gateResult.passed) {
+      throw new SessionError(
+        "Cannot emit step packets: execution gate not passed",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId, gatePassed: gateResult?.passed ?? false },
+      );
+    }
+
+    // MUST verify approvals (Phase N)
+    try {
+      this.verifySessionApprovals(sessionId);
+    } catch (error) {
+      if (error instanceof SessionError) {
+        throw new SessionError(
+          `Cannot emit step packets: approvals not verified: ${error.message}`,
+          "STEP_PACKET_EMIT_FAILED",
+          { sessionId, approvalError: error.message },
+        );
+      }
+      throw error;
+    }
+
+    // Load all required artifacts
+    const dod = readDoDJson(this.sessionRoot, sessionId);
+    if (!dod) {
+      throw new SessionError(
+        "Cannot emit step packets: Definition of Done missing",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot emit step packets: Decision Lock missing",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan) {
+      throw new SessionError(
+        "Cannot emit step packets: Execution Plan missing",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+    if (!capsule) {
+      throw new SessionError(
+        "Cannot emit step packets: Prompt Capsule missing",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const snapshot = readRepoSnapshotJson(this.sessionRoot, sessionId);
+    if (!snapshot) {
+      throw new SessionError(
+        "Cannot emit step packets: Repo Snapshot missing",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const symbolIndex = readSymbolIndexJson(this.sessionRoot, sessionId);
+
+    // Use provided projectRoot or throw if not available
+    if (!projectRoot) {
+      // Try to derive from snapshot rootDescriptor or throw
+      throw new SessionError(
+        "Cannot emit step packets: projectRoot required",
+        "STEP_PACKET_EMIT_FAILED",
+        { sessionId },
+      );
+    }
+
+    // Convert plan to ExecutionPlanLike
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    // Emit packets
+    const packets = emitStepPacketsCore({
+      sessionId,
+      sessionRoot: this.sessionRoot,
+      projectRoot,
+      dod,
+      lock,
+      plan: planLike,
+      capsule,
+      snapshot,
+      symbolIndex,
+    });
+
+    // Persist packets
+    for (const packet of packets) {
+      writeStepPacketJson(this.sessionRoot, sessionId, packet);
+    }
+
+    return packets;
+  }
+
+  /**
+   * Validate all step packets for a session.
+   *
+   * @param sessionId - Session ID
+   * @returns Validation result with passed flag and errors
+   */
+  validateStepPackets(sessionId: string): {
+    passed: boolean;
+    errors: string[];
+  } {
+    this.requireSession(sessionId);
+
+    const packets = readAllStepPacketsJson(this.sessionRoot, sessionId);
+    if (packets.length === 0) {
+      return { passed: true, errors: [] };
+    }
+
+    // Load required artifacts
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot validate step packets: Decision Lock missing",
+        "STEP_PACKET_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan) {
+      throw new SessionError(
+        "Cannot validate step packets: Execution Plan missing",
+        "STEP_PACKET_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+    if (!capsule) {
+      throw new SessionError(
+        "Cannot validate step packets: Prompt Capsule missing",
+        "STEP_PACKET_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const snapshot = readRepoSnapshotJson(this.sessionRoot, sessionId);
+    if (!snapshot) {
+      throw new SessionError(
+        "Cannot validate step packets: Repo Snapshot missing",
+        "STEP_PACKET_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const symbolIndex = readSymbolIndexJson(this.sessionRoot, sessionId);
+
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    const errors: string[] = [];
+
+    // Validate each packet
+    for (const packet of packets) {
+      try {
+        lintStepPacket({
+          packet,
+          lockGoal: lock.goal,
+          capsule,
+          plan: planLike,
+          snapshot,
+          symbolIndex,
+        });
+      } catch (error) {
+        if (error instanceof SessionError) {
+          errors.push(`Packet ${packet.stepId}: ${error.message}`);
+        } else {
+          errors.push(`Packet ${packet.stepId}: ${String(error)}`);
+        }
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.sort(),
+    };
   }
 
   // -----------------------------------------------------------------------

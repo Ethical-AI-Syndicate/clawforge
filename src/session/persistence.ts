@@ -34,6 +34,7 @@ import type { RepoSnapshot } from "./repo-snapshot.js";
 import type { PatchApplyReport } from "./patch-apply.js";
 import type { ApprovalPolicy } from "./approval-policy.js";
 import type { ApprovalBundle } from "./approval-bundle.js";
+import type { StepPacket, PacketReceipt } from "./step-packet.js";
 
 // ---------------------------------------------------------------------------
 // Session metadata (what gets written to session.json)
@@ -821,4 +822,86 @@ export function appendApprovalNonce(
     );
   }
   writeUsedApprovalNoncesJson(sessionRoot, sessionId, [...existing, nonce]);
+}
+
+// ---------------------------------------------------------------------------
+// Phase O: Step Packet persistence
+// ---------------------------------------------------------------------------
+
+export function writeStepPacketJson(
+  sessionRoot: string,
+  sessionId: string,
+  packet: StepPacket,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const packetsDir = join(dir, "packets");
+  ensureDir(packetsDir);
+  writeFileSync(
+    join(packetsDir, `step-${packet.stepId}.json`),
+    canonicalJson(packet),
+    "utf8",
+  );
+}
+
+export function readStepPacketJson(
+  sessionRoot: string,
+  sessionId: string,
+  stepId: string,
+): StepPacket | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const packetsDir = join(dir, "packets");
+  const filePath = join(packetsDir, `step-${stepId}.json`);
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as StepPacket;
+}
+
+export function readAllStepPacketsJson(
+  sessionRoot: string,
+  sessionId: string,
+): StepPacket[] {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const packetsDir = join(dir, "packets");
+  if (!existsSync(packetsDir)) {
+    return [];
+  }
+
+  const files = readdirSync(packetsDir)
+    .filter((f) => f.startsWith("step-") && f.endsWith(".json"))
+    .sort();
+
+  return files.map((f) => {
+    const filePath = join(packetsDir, f);
+    return JSON.parse(readFileSync(filePath, "utf8")) as StepPacket;
+  }).sort((a, b) => a.stepId.localeCompare(b.stepId));
+}
+
+export function writePacketReceiptJson(
+  sessionRoot: string,
+  sessionId: string,
+  receipt: PacketReceipt,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const packetsDir = join(dir, "packets");
+  ensureDir(packetsDir);
+  writeFileSync(
+    join(packetsDir, `receipt-${receipt.stepId}.json`),
+    canonicalJson(receipt),
+    "utf8",
+  );
+}
+
+export function readPacketReceiptJson(
+  sessionRoot: string,
+  sessionId: string,
+  stepId: string,
+): PacketReceipt | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const packetsDir = join(dir, "packets");
+  const filePath = join(packetsDir, `receipt-${stepId}.json`);
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as PacketReceipt;
 }

@@ -60,7 +60,11 @@ export type SessionErrorCode =
   | "APPROVAL_BUNDLE_INVALID"
   | "APPROVAL_SIGNATURE_INVALID"
   | "APPROVAL_QUORUM_NOT_MET"
-  | "APPROVAL_REPLAY_DETECTED";
+  | "APPROVAL_REPLAY_DETECTED"
+  | "STEP_PACKET_INVALID"
+  | "STEP_PACKET_LINT_FAILED"
+  | "STEP_PACKET_EMIT_FAILED"
+  | "PACKET_RECEIPT_INVALID";
 
 export class SessionError extends Error {
   public readonly code: SessionErrorCode;

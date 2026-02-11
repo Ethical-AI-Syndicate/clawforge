@@ -295,6 +295,39 @@ export {
   readPatchApplyReportJson,
 } from "./persistence.js";
 
+// Phase O: Least-Privilege Work Packets
+export {
+  StepPacketSchema,
+  PacketReceiptSchema,
+  FileDigestSchema,
+  ExcerptSchema,
+  PacketContextSchema,
+  computeStepPacketHash,
+  type StepPacket,
+  type PacketReceipt,
+  type FileDigest,
+  type Excerpt,
+  type PacketContext,
+} from "./step-packet.js";
+
+export {
+  lintStepPacket,
+  type LintStepPacketInput,
+} from "./step-packet-lint.js";
+
+export {
+  emitStepPackets,
+  type EmitStepPacketsInput,
+} from "./step-packet-emit.js";
+
+export {
+  writeStepPacketJson,
+  readStepPacketJson,
+  readAllStepPacketsJson,
+  writePacketReceiptJson,
+  readPacketReceiptJson,
+} from "./persistence.js";
+
 // Phase N: Quorum Signatures for Approval Artifacts
 export {
   computeDecisionLockHash,

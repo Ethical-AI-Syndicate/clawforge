@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0.0",
+  "executionPlanId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "sessionId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "dodId": "11111111-1111-4111-8111-111111111111",
+  "lockId": "22222222-2222-4222-8222-222222222222",
+  "createdAt": "2026-02-11T00:45:00.000Z",
+  "createdBy": {
+    "actorType": "human",
+    "actorId": "mike"
+  },
+
+  "decisionLockGoal": "Build ClawForge v0 as a deterministic, audit-first platform that converts free-form ideas into fully specified plans and executes them only after strict human-approved gating.",
+
+  "executionPrinciples": [
+    "No step may introduce new requirements, abstractions, or features.",
+    "All implementation must directly satisfy one or more DoD items.",
+    "AI assistance is allowed only where explicitly stated.",
+    "Any deviation requires a new session and gate review."
+  ],
+
+  "forbiddenActions": [
+    "Adding features not named in the Decision Lock goal or invariants",
+    "Refactoring for aesthetics or future-proofing",
+    "Introducing new configuration surfaces",
+    "Allowing AI to generate code without explicit step boundaries",
+    "Skipping verification steps defined in the DoD"
+  ],
+
+  "steps": [
+    {
+      "stepId": "exec-1",
+      "title": "Freeze kernel surface",
+      "purpose": "Ensure the ClawForge kernel remains stable during execution.",
+      "actions": [
+        "Declare src/contracts, src/audit, src/storage, src/evidence as frozen.",
+        "Reject any code changes outside src/session and orchestration layers."
+      ],
+      "aiAllowed": false,
+      "verification": {
+        "method": "artifact_recorded",
+        "evidence": "git diff shows no kernel file changes"
+      }
+    },
+
+    {
+      "stepId": "exec-2",
+      "title": "Implement session orchestration layer (Phase B)",
+      "purpose": "Translate approved DoD and Decision Lock into executable orchestration.",
+      "actions": [
+        "Implement SessionManager with strict mode separation.",
+        "Ensure execution run creation requires a passing gate result.",
+        "Persist session artifacts using canonical JSON."
+      ],
+      "aiAllowed": true,
+      "aiConstraints": [
+        "AI may generate code only within src/session.",
+        "Human must review and approve each file before commit."
+      ],
+      "verification": {
+        "method": "command_exit_code",
+        "verificationCommand": "pnpm test tests/session.test.ts",
+        "expectedExitCode": 0
+      }
+    },
+
+    {
+      "stepId": "exec-3",
+      "title": "Enforce execution prohibition invariant",
+      "purpose": "Guarantee execution cannot occur without a passing gate.",
+      "actions": [
+        "Add guard checks to execution entry points.",
+        "Ensure no execution path bypasses evaluateExecutionGate()."
+      ],
+      "aiAllowed": true,
+      "aiConstraints": [
+        "AI may not remove or weaken any existing gate checks."
+      ],
+      "verification": {
+        "method": "command_exit_code",
+        "verificationCommand": "pnpm test tests/gate.test.ts",
+        "expectedExitCode": 0
+      }
+    },
+
+    {
+      "stepId": "exec-4",
+      "title": "Integrate CLI session commands",
+      "purpose": "Expose session lifecycle controls without weakening constraints.",
+      "actions": [
+        "Add CLI commands for session creation, DoD recording, lock approval, gate evaluation.",
+        "Ensure CLI commands are thin wrappers over library logic."
+      ],
+      "aiAllowed": true,
+      "aiConstraints": [
+        "AI may not introduce new CLI flags that bypass validation."
+      ],
+      "verification": {
+        "method": "command_exit_code",
+        "verificationCommand": "pnpm test tests/session-cli.test.ts",
+        "expectedExitCode": 0
+      }
+    },
+
+    {
+      "stepId": "exec-5",
+      "title": "Produce reference evidence bundle",
+      "purpose": "Demonstrate end-to-end determinism and auditability.",
+      "actions": [
+        "Run a full session lifecycle using the approved DoD and Decision Lock.",
+        "Export an evidence bundle.",
+        "Verify the bundle independently."
+      ],
+      "aiAllowed": false,
+      "verification": {
+        "method": "artifact_recorded",
+        "evidence": [
+          "reference-session.sqlite",
+          "reference-evidence.zip",
+          "manual sha256 verification output"
+        ]
+      }
+    }
+  ],
+
+  "completionCriteria": [
+    "All steps executed in order",
+    "All verification steps pass",
+    "No forbidden actions observed",
+    "Evidence bundle independently verifiable"
+  ]
+}

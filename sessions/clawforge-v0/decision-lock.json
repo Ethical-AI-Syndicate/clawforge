@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "1.0.0",
+  "lockId": "22222222-2222-4222-8222-222222222222",
+  "sessionId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "dodId": "11111111-1111-4111-8111-111111111111",
+  "createdAt": "2026-02-10T22:05:00Z",
+  "createdBy": {
+    "actorId": "mike",
+    "actorType": "human"
+  },
+  "status": "approved",
+  "approvalMetadata": {
+    "approvedBy": "mike",
+    "approvedAt": "2026-02-10T22:10:00Z",
+    "approvalMethod": "explicit human approval after gate review"
+  },
+  "goal": "Build ClawForge v0 as a deterministic, audit-first platform that converts free-form ideas into fully specified plans and executes them only after strict human-approved gating.",
+  "nonGoals": [
+    "Autonomous execution without human approval",
+    "Optimizing for speed over correctness",
+    "Supporting opaque or heuristic-only AI decisions",
+    "Being a general-purpose low-code or no-code platform"
+  ],
+  "interfaces": [
+    {
+      "name": "Idea Input",
+      "description": "Accepts free-form human ideas as unstructured text.",
+      "type": "api"
+    },
+    {
+      "name": "Artifacts",
+      "description": "JSON artifacts for DoD, Decision Lock, Gate Result, and Execution Plan.",
+      "type": "schema"
+    },
+    {
+      "name": "CLI",
+      "description": "Human-operated interface for recording, approving, gating, and executing sessions.",
+      "type": "cli"
+    }
+  ],
+  "invariants": [
+    "Execution cannot occur unless evaluateExecutionGate().passed === true.",
+    "All execution actions must be enumerated before execution begins.",
+    "No kernel behavior is modified by session orchestration.",
+    "All verification must be reproducible post hoc."
+  ],
+  "constraints": [
+    "No network calls during execution unless explicitly listed in the execution plan.",
+    "All artifacts must be schema-versioned and immutable once approved.",
+    "Human approval is mandatory and non-delegable."
+  ],
+  "failureModes": [
+    {
+      "description": "Vague DoD items allow ambiguous execution outcomes.",
+      "mitigation": "Reject vague language at schema validation and gate evaluation."
+    },
+    {
+      "description": "AI introduces unplanned actions during execution.",
+      "mitigation": "Require full execution plan enumeration and disallow dynamic branching."
+    },
+    {
+      "description": "Human bypass attempts via configuration or flags.",
+      "mitigation": "Permanent gate invariant enforced structurally and tested."
+    }
+  ],
+  "risksAndTradeoffs": [
+    {
+      "description": "Increased friction slows experimentation.",
+      "severity": "medium",
+      "accepted": true
+    },
+    {
+      "description": "Higher upfront planning cost may discourage casual use.",
+      "severity": "low",
+      "accepted": true
+    },
+    {
+      "description": "Strict determinism limits creative exploration.",
+      "severity": "medium",
+      "accepted": true
+    }
+  ]
+}

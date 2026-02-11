@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "1.0.0",
+  "dodId": "11111111-1111-4111-8111-111111111111",
+  "sessionId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "title": "ClawForge v0 — Deterministic Idea to Execution Platform",
+  "createdAt": "2026-02-10T22:00:00Z",
+  "createdBy": {
+    "actorId": "mike",
+    "actorType": "human"
+  },
+  "items": [
+    {
+      "id": "dod-1",
+      "description": "The system produces a Definition of Done artifact from a free-form idea such that every item is concrete, non-vague, and schema-valid without manual editing.",
+      "verificationMethod": "artifact_recorded",
+      "verificationProcedure": "Locate the recorded Definition of Done JSON artifact, validate it against DefinitionOfDoneSchema, and confirm all items pass validation with no manual modification.",
+      "notDoneConditions": [
+        "Any DoD item contains vague language such as 'works', 'looks good', or 'should be fine'.",
+        "Manual editing is required to pass schema validation.",
+        "DoD items are descriptive without verifiable outcomes."
+      ]
+    },
+    {
+      "id": "dod-2",
+      "description": "The system produces a Decision Lock artifact that fully specifies goals, non-goals, invariants, constraints, risks, and failure modes and references this DoD.",
+      "verificationMethod": "artifact_recorded",
+      "verificationProcedure": "Locate the recorded Decision Lock JSON artifact, validate it against DecisionLockSchema, and confirm status is 'approved' with approvalMetadata present.",
+      "notDoneConditions": [
+        "Decision Lock status is not 'approved'.",
+        "Any required Decision Lock section is empty.",
+        "Decision Lock references a missing or different DoD."
+      ]
+    },
+    {
+      "id": "dod-3",
+      "description": "Execution is impossible unless evaluateExecutionGate() passes for the associated Definition of Done and Decision Lock.",
+      "verificationMethod": "command_exit_code",
+      "verificationCommand": "attempt-execution-with-invalid-inputs",
+      "expectedExitCode": 1,
+      "notDoneConditions": [
+        "Execution proceeds with a missing DoD.",
+        "Execution proceeds with an unapproved Decision Lock.",
+        "Execution can be forced via flags or configuration."
+      ]
+    },
+    {
+      "id": "dod-4",
+      "description": "Execution produces a deterministic execution plan artifact enumerating all actions prior to execution.",
+      "verificationMethod": "artifact_recorded",
+      "verificationProcedure": "Inspect the execution plan artifact and confirm all steps are explicitly enumerated and stable across repeated runs with identical inputs.",
+      "notDoneConditions": [
+        "Execution decisions occur dynamically.",
+        "Execution plan differs between identical runs.",
+        "Steps are implied rather than explicitly listed."
+      ]
+    },
+    {
+      "id": "dod-5",
+      "description": "A third party can reproduce verification results using only stored artifacts and repository state.",
+      "verificationMethod": "custom",
+      "verificationProcedure": "On a clean machine, clone the repository, load stored artifacts, re-run verification commands, and confirm identical results without additional context.",
+      "notDoneConditions": [
+        "Undocumented human judgment is required.",
+        "Environment assumptions are implicit.",
+        "Verification depends on prior conversations or hidden state."
+      ]
+    }
+  ]
+}
+

@@ -28,6 +28,8 @@ import type { Policy } from "./policy.js";
 import type { PolicyValidationResult } from "./policy-enforcement.js";
 import type { PromptCapsule } from "./prompt-capsule.js";
 import type { ModelResponseArtifact } from "./model-response.js";
+import type { SymbolIndex } from "./symbol-index.js";
+import type { SymbolValidationResult } from "./symbol-validate.js";
 
 // ---------------------------------------------------------------------------
 // Session metadata (what gets written to session.json)
@@ -589,4 +591,64 @@ export function readModelResponseJson(
     return undefined;
   }
   return JSON.parse(readFileSync(filePath, "utf8")) as ModelResponseArtifact;
+}
+
+// ---------------------------------------------------------------------------
+// Phase L: Symbol Index persistence
+// ---------------------------------------------------------------------------
+
+export function writeSymbolIndexJson(
+  sessionRoot: string,
+  sessionId: string,
+  index: SymbolIndex,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "symbol-index.json"),
+    canonicalJson(index),
+    "utf8",
+  );
+}
+
+export function readSymbolIndexJson(
+  sessionRoot: string,
+  sessionId: string,
+): SymbolIndex | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "symbol-index.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as SymbolIndex;
+}
+
+// ---------------------------------------------------------------------------
+// Phase L: Symbol Validation persistence
+// ---------------------------------------------------------------------------
+
+export function writeSymbolValidationJson(
+  sessionRoot: string,
+  sessionId: string,
+  result: SymbolValidationResult,
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "symbol-validation.json"),
+    canonicalJson(result),
+    "utf8",
+  );
+}
+
+export function readSymbolValidationJson(
+  sessionRoot: string,
+  sessionId: string,
+): SymbolValidationResult | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "symbol-validation.json");
+  if (!existsSync(filePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(filePath, "utf8")) as SymbolValidationResult;
 }

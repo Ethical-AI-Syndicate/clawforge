@@ -197,4 +197,57 @@ describe("Execution guardrails — no execution surface in session layer", () =>
       }
     }
   });
+
+  it("Phase L modules (symbol-index, symbol-validate) may use TypeScript compiler API only", () => {
+    const ALLOWED_TYPESCRIPT_IMPORTS = [
+      'import * as ts from "typescript"',
+      "import * as ts from 'typescript'",
+      'import ts from "typescript"',
+      "import ts from 'typescript'",
+      'from "typescript"',
+      "from 'typescript'",
+    ];
+    const FORBIDDEN_EXECUTION = [
+      "child_process",
+      "spawn",
+      "exec",
+      "eval",
+      "new Function",
+      "http",
+      "https",
+      "net",
+    ];
+
+    const phaseLFiles = ["symbol-index.ts", "symbol-validate.ts"];
+
+    for (const fileName of phaseLFiles) {
+      const filePath = join(SESSION_SRC, fileName);
+      try {
+        const content = readFileSync(filePath, "utf8");
+
+        // Must use TypeScript compiler API
+        const hasTypeScriptImport = ALLOWED_TYPESCRIPT_IMPORTS.some((pattern) =>
+          content.includes(pattern),
+        );
+        expect(
+          hasTypeScriptImport,
+          `Phase L module ${fileName} must import TypeScript compiler API`,
+        ).toBe(true);
+
+        // Must not use forbidden execution patterns
+        for (const forbidden of FORBIDDEN_EXECUTION) {
+          expect(
+            content.includes(forbidden),
+            `Phase L module ${fileName} must not contain ${forbidden}`,
+          ).toBe(false);
+        }
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+          // File doesn't exist yet (might be during development)
+          continue;
+        }
+        throw e;
+      }
+    }
+  });
 });

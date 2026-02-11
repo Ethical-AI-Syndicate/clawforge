@@ -38,6 +38,9 @@ import {
   readPromptCapsuleJson,
   writeModelResponseJson,
   readModelResponseJson,
+  writeSymbolIndexJson,
+  readSymbolIndexJson,
+  writeSymbolValidationJson,
   type SessionRecord,
 } from "./persistence.js";
 import {
@@ -63,6 +66,18 @@ import { validatePolicies, type PolicyValidationResult } from "./policy-enforcem
 import type { PromptCapsule } from "./prompt-capsule.js";
 import type { ModelResponseArtifact } from "./model-response.js";
 import { lintPromptCapsule, lintModelResponse } from "./prompt-lint.js";
+import {
+  buildSymbolIndex,
+  type SymbolIndex,
+  type BuildSymbolIndexOptions,
+} from "./symbol-index.js";
+import {
+  validatePatchAgainstSymbols,
+  type SymbolValidationResult,
+} from "./symbol-validate.js";
+import type { PatchArtifact } from "./patch-artifact.js";
+import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -749,6 +764,124 @@ export class SessionManager {
     writeModelResponseJson(this.sessionRoot, sessionId, response);
 
     return response;
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase L: Symbol Index building and validation
+  // -----------------------------------------------------------------------
+
+  /**
+   * Build and record symbol index for a session.
+   *
+   * @param sessionId - Session ID
+   * @param options - Build options
+   * @returns The built symbol index
+   */
+  buildAndRecordSymbolIndex(
+    sessionId: string,
+    options: BuildSymbolIndexOptions,
+  ): SymbolIndex {
+    this.requireSession(sessionId);
+
+    const index = buildSymbolIndex(options);
+    writeSymbolIndexJson(this.sessionRoot, sessionId, index);
+
+    return index;
+  }
+
+  /**
+   * Validate patch against symbol index.
+   *
+   * @param sessionId - Session ID
+   * @param patchArtifact - Patch artifact to validate (can be path or object)
+   * @param projectRoot - Project root directory
+   * @returns Validation result
+   */
+  validatePatchAgainstSymbolIndex(
+    sessionId: string,
+    patchArtifact: PatchArtifact | string,
+    projectRoot: string,
+  ): SymbolValidationResult {
+    this.requireSession(sessionId);
+
+    // Load required artifacts
+    const capsule = readPromptCapsuleJson(this.sessionRoot, sessionId);
+    if (!capsule) {
+      throw new SessionError(
+        "Cannot validate patch: no prompt capsule exists",
+        "PROMPT_CAPSULE_INVALID",
+        { sessionId },
+      );
+    }
+
+    const lock = readDecisionLockJson(this.sessionRoot, sessionId);
+    if (!lock) {
+      throw new SessionError(
+        "Cannot validate patch: no Decision Lock exists",
+        "LOCK_MISSING",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan) {
+      throw new SessionError(
+        "Cannot validate patch: no execution plan exists",
+        "EXECUTION_PLAN_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const symbolIndex = readSymbolIndexJson(this.sessionRoot, sessionId);
+    if (!symbolIndex) {
+      throw new SessionError(
+        "Cannot validate patch: no symbol index exists",
+        "SYMBOL_INDEX_INVALID",
+        { sessionId },
+      );
+    }
+
+    // Load patch artifact if it's a path
+    let patch: PatchArtifact;
+    if (typeof patchArtifact === "string") {
+      const patchContent = readFileSync(patchArtifact, "utf8");
+      patch = JSON.parse(patchContent) as PatchArtifact;
+    } else {
+      patch = patchArtifact;
+    }
+
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    // Validate patch
+    const result = validatePatchAgainstSymbols(
+      patch,
+      capsule,
+      lock,
+      planLike,
+      symbolIndex,
+      projectRoot,
+    );
+
+    // Write validation result
+    writeSymbolValidationJson(this.sessionRoot, sessionId, result);
+
+    // Throw if validation failed
+    if (!result.passed) {
+      throw new SessionError(
+        `Symbol validation failed: ${result.errors.join("; ")}`,
+        "SYMBOL_VALIDATION_FAILED",
+        { sessionId, errors: result.errors },
+      );
+    }
+
+    return result;
   }
 
   // -----------------------------------------------------------------------

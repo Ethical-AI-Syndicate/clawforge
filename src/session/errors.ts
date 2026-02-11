@@ -46,7 +46,11 @@ export type SessionErrorCode =
   | "RESPONSE_HASH_MISMATCH"
   | "BOUNDARY_VIOLATION"
   | "FORBIDDEN_TOKEN_DETECTED"
-  | "IMPORT_BOUNDARY_VIOLATION";
+  | "IMPORT_BOUNDARY_VIOLATION"
+  | "SYMBOL_INDEX_INVALID"
+  | "SYMBOL_VALIDATION_FAILED"
+  | "SYMBOL_RESOLUTION_FAILED"
+  | "SYMBOL_EXPORT_VIOLATION";
 
 export class SessionError extends Error {
   public readonly code: SessionErrorCode;

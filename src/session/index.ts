@@ -246,3 +246,25 @@ export {
   writeModelResponseJson,
   readModelResponseJson,
 } from "./persistence.js";
+
+// Phase L: Symbol Graph Enforcement
+export {
+  buildSymbolIndex,
+  type SymbolIndex,
+  type FileSymbolInfo,
+  type ExportInfo,
+  type ImportInfo,
+  type BuildSymbolIndexOptions,
+} from "./symbol-index.js";
+
+export {
+  validatePatchAgainstSymbols,
+  type SymbolValidationResult,
+} from "./symbol-validate.js";
+
+export {
+  writeSymbolIndexJson,
+  readSymbolIndexJson,
+  writeSymbolValidationJson,
+  readSymbolValidationJson,
+} from "./persistence.js";

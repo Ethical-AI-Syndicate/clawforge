@@ -8,6 +8,7 @@
  * Environment overrides:
  *   CLAWFORGE_DB_PATH        absolute path to SQLite file
  *   CLAWFORGE_ARTIFACT_ROOT  absolute path to artifact directory
+ *   CLAWFORGE_SESSION_DIR    absolute path to session directory
  */
 
 import { homedir } from "node:os";
@@ -17,6 +18,7 @@ import { mkdirSync } from "node:fs";
 export interface ClawforgeConfig {
   dbPath: string;
   artifactRoot: string;
+  sessionDir: string;
   baseDir: string;
 }
 
@@ -30,7 +32,10 @@ export function resolveConfig(): ClawforgeConfig {
   const artifactRoot = resolve(
     process.env["CLAWFORGE_ARTIFACT_ROOT"] ?? join(baseDir, "artifacts"),
   );
-  return { dbPath, artifactRoot, baseDir };
+  const sessionDir = resolve(
+    process.env["CLAWFORGE_SESSION_DIR"] ?? join(baseDir, "sessions"),
+  );
+  return { dbPath, artifactRoot, sessionDir, baseDir };
 }
 
 /**
@@ -39,4 +44,5 @@ export function resolveConfig(): ClawforgeConfig {
 export function ensureDataDirs(config: ClawforgeConfig): void {
   mkdirSync(config.baseDir, { recursive: true });
   mkdirSync(config.artifactRoot, { recursive: true });
+  mkdirSync(config.sessionDir, { recursive: true });
 }

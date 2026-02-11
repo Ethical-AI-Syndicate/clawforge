@@ -29,6 +29,12 @@ import {
   cmdPutArtifact,
   cmdExportEvidence,
 } from "./commands.js";
+import {
+  handleSessionCommand,
+  handleDoDCommand,
+  handleLockCommand,
+  handleGateCommand,
+} from "./session-commands.js";
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -84,9 +90,17 @@ Usage:
   clawctl put-artifact --run <id> --file <path> [--mime <type>] [--label <text>] [--json]
   clawctl export-evidence --run <id> --out <zipPath> [--max-include-bytes <n>] [--no-artifacts]
 
+  clawctl session create --title <t> [--description <d>] [--session <id>] [--actor <id>] [--json]
+  clawctl session status --session <id> [--json]
+  clawctl dod record --session <id> --file <dod.json> [--json]
+  clawctl lock record --session <id> --file <lock.json> [--json]
+  clawctl lock approve --session <id> --approver <name> [--method <m>] [--json]
+  clawctl gate check --session <id> [--json]
+
 Environment:
   CLAWFORGE_DB_PATH        Override SQLite database path
   CLAWFORGE_ARTIFACT_ROOT  Override artifact storage root
+  CLAWFORGE_SESSION_DIR    Override session directory
 `;
 
 // ---------------------------------------------------------------------------
@@ -149,6 +163,18 @@ async function main(): Promise<number> {
 
     case "export-evidence":
       return cmdExportEvidence(flags, config);
+
+    case "session":
+      return handleSessionCommand(positional.slice(1), flags, config, json);
+
+    case "dod":
+      return handleDoDCommand(positional.slice(1), flags, config, json);
+
+    case "lock":
+      return handleLockCommand(positional.slice(1), flags, config, json);
+
+    case "gate":
+      return handleGateCommand(positional.slice(1), flags, config, json);
 
     default:
       process.stderr.write(`Unknown command: ${command}\n\n${USAGE}`);

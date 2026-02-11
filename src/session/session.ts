@@ -31,8 +31,17 @@ import {
   readDecisionLockJson,
   writeGateResultJson,
   readGateResultJson,
+  readRunnerEvidenceJson,
+  writeRunnerEvidenceJson,
+  readExecutionPlanJson,
   type SessionRecord,
 } from "./persistence.js";
+import {
+  validateRunnerEvidence,
+  deriveCompletionStatus as deriveCompletionFromEvidence,
+  type ExecutionPlanLike,
+} from "./evidence-validation.js";
+import { RunnerEvidenceSchema, type RunnerEvidence } from "./runner-contract.js";
 
 // ---------------------------------------------------------------------------
 // Derived session status
@@ -382,6 +391,101 @@ export class SessionManager {
     if (lock.status === "approved") return "locked";
 
     return "exploring";
+  }
+
+  // -----------------------------------------------------------------------
+  // recordRunnerEvidence
+  // -----------------------------------------------------------------------
+
+  recordRunnerEvidence(sessionId: string, evidence: unknown): RunnerEvidence {
+    this.requireSession(sessionId);
+
+    const dod = readDoDJson(this.sessionRoot, sessionId);
+    if (!dod) {
+      throw new SessionError(
+        "Cannot record evidence: no Definition of Done",
+        "DOD_MISSING",
+        { sessionId },
+      );
+    }
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) {
+      throw new SessionError(
+        "Cannot record evidence: no execution plan or plan has no steps",
+        "EXECUTION_PLAN_LINT_FAILED",
+        { sessionId },
+      );
+    }
+
+    const gateResult = readGateResultJson(this.sessionRoot, sessionId);
+    if (!gateResult || !gateResult.passed) {
+      throw new SessionError(
+        "Cannot record evidence: gate has not passed",
+        "GATE_FAILED",
+        { sessionId },
+      );
+    }
+
+    const recorded = readRunnerEvidenceJson(this.sessionRoot, sessionId) ?? [];
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    const result = validateRunnerEvidence(
+      evidence,
+      dod,
+      planLike,
+      recorded,
+    );
+
+    if (!result.passed) {
+      throw new SessionError(
+        `Evidence validation failed: ${result.errors.join("; ")}`,
+        "EVIDENCE_VALIDATION_FAILED",
+        { sessionId, errors: result.errors },
+      );
+    }
+
+    const parsed = RunnerEvidenceSchema.parse(evidence) as RunnerEvidence;
+    const next = [...recorded, parsed];
+    writeRunnerEvidenceJson(this.sessionRoot, sessionId, next);
+    return parsed;
+  }
+
+  // -----------------------------------------------------------------------
+  // deriveCompletionStatus
+  // -----------------------------------------------------------------------
+
+  deriveCompletionStatus(sessionId: string): boolean {
+    this.requireSession(sessionId);
+
+    const plan = readExecutionPlanJson(this.sessionRoot, sessionId);
+    if (!plan || !Array.isArray(plan.steps)) return false;
+
+    const recorded = readRunnerEvidenceJson(this.sessionRoot, sessionId) ?? [];
+    const gateResult = readGateResultJson(this.sessionRoot, sessionId);
+    const gatePassed = gateResult?.passed ?? false;
+
+    const planLike: ExecutionPlanLike = {
+      sessionId: plan.sessionId as string | undefined,
+      dodId: plan.dodId as string | undefined,
+      lockId: plan.lockId as string | undefined,
+      steps: plan.steps as ExecutionPlanLike["steps"],
+      allowedCapabilities: plan.allowedCapabilities as string[] | undefined,
+      ...plan,
+    };
+
+    return deriveCompletionFromEvidence(
+      planLike,
+      recorded,
+      gatePassed,
+    );
   }
 
   // -----------------------------------------------------------------------

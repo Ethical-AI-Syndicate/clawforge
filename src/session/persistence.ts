@@ -14,10 +14,13 @@
  *       gate-result.json
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { canonicalJson } from "../audit/canonical.js";
+import { SessionError } from "./errors.js";
 import type { DefinitionOfDone, DecisionLock, ExecutionGateResult } from "./schemas.js";
+import type { RunnerEvidence } from "./runner-contract.js";
+import type { ReviewerReport } from "./reviewer-contract.js";
 
 // ---------------------------------------------------------------------------
 // Session metadata (what gets written to session.json)
@@ -153,4 +156,92 @@ export function readGateResultJson(
   const filePath = join(dir, "gate-result.json");
   if (!existsSync(filePath)) return undefined;
   return JSON.parse(readFileSync(filePath, "utf8")) as ExecutionGateResult;
+}
+
+// ---------------------------------------------------------------------------
+// Runner Evidence JSON
+// ---------------------------------------------------------------------------
+
+export function writeRunnerEvidenceJson(
+  sessionRoot: string,
+  sessionId: string,
+  evidence: RunnerEvidence[],
+): void {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  writeFileSync(
+    join(dir, "runner-evidence.json"),
+    canonicalJson(evidence),
+    "utf8",
+  );
+}
+
+export function readRunnerEvidenceJson(
+  sessionRoot: string,
+  sessionId: string,
+): RunnerEvidence[] | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "runner-evidence.json");
+  if (!existsSync(filePath)) return undefined;
+  return JSON.parse(readFileSync(filePath, "utf8")) as RunnerEvidence[];
+}
+
+// ---------------------------------------------------------------------------
+// Execution Plan JSON (read-only; validated by lint)
+// ---------------------------------------------------------------------------
+
+export function readExecutionPlanJson(
+  sessionRoot: string,
+  sessionId: string,
+): Record<string, unknown> | undefined {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  const filePath = join(dir, "execution-plan.json");
+  if (!existsSync(filePath)) return undefined;
+  return JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Reviewer Report JSON
+// ---------------------------------------------------------------------------
+
+const SAFE_STEP_ID_RE = /^[^/\\]*$/;
+
+export function writeReviewerReportJson(
+  sessionRoot: string,
+  sessionId: string,
+  stepId: string,
+  reviewerRole: string,
+  report: ReviewerReport,
+): void {
+  if (!SAFE_STEP_ID_RE.test(stepId) || stepId.includes("..")) {
+    throw new Error(`Unsafe stepId: ${stepId}`);
+  }
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  ensureDir(dir);
+  const fileName = `reviewer-${stepId}-${reviewerRole}.json`;
+  const filePath = join(dir, fileName);
+  if (existsSync(filePath)) {
+    throw new SessionError(
+      `Reviewer report already exists: ${fileName}`,
+      "REVIEWER_DUPLICATE",
+      { sessionId, stepId, reviewerRole },
+    );
+  }
+  writeFileSync(filePath, canonicalJson(report), "utf8");
+}
+
+export function readReviewerReports(
+  sessionRoot: string,
+  sessionId: string,
+  stepId: string,
+): ReviewerReport[] {
+  const dir = safeSessionDir(sessionRoot, sessionId);
+  if (!existsSync(dir)) return [];
+  const prefix = `reviewer-${stepId}-`;
+  const files = readdirSync(dir).filter(
+    (f) => f.startsWith(prefix) && f.endsWith(".json"),
+  );
+  return files.map(
+    (f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as ReviewerReport,
+  );
 }

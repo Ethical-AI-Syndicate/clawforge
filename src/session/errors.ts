@@ -12,7 +12,13 @@ export type SessionErrorCode =
   | "GATE_FAILED"
   | "SCHEMA_INVALID"
   | "ID_MISMATCH"
-  | "MODE_VIOLATION";
+  | "MODE_VIOLATION"
+  | "EXECUTION_PLAN_LINT_FAILED"
+  | "EVIDENCE_VALIDATION_FAILED"
+  | "REVIEWER_FAILED"
+  | "REVIEWER_DUPLICATE"
+  | "STEP_ENVELOPE_INVALID"
+  | "PATCH_ARTIFACT_INVALID";
 
 export class SessionError extends Error {
   public readonly code: SessionErrorCode;

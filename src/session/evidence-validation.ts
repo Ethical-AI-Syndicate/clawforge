@@ -6,6 +6,10 @@
 import type { DefinitionOfDone } from "./schemas.js";
 import type { RunnerEvidence } from "./runner-contract.js";
 import { RunnerEvidenceSchema } from "./runner-contract.js";
+import {
+  isCapabilityRegistered,
+  requiresHumanConfirmation,
+} from "./capabilities.js";
 
 // ---------------------------------------------------------------------------
 // Execution plan shape (structural only)
@@ -14,6 +18,7 @@ import { RunnerEvidenceSchema } from "./runner-contract.js";
 export interface ExecutionPlanStep {
   stepId: string;
   references?: string[];
+  requiredCapabilities?: string[];
   [key: string]: unknown;
 }
 
@@ -90,13 +95,46 @@ export function validateRunnerEvidence(
     return { passed: false, errors, derivedCompletionState: false };
   }
 
-  // CapabilityUsed must be allowed by plan
+  // Phase G: Capability validation
+  // 1. Capability must be in registry
+  if (!isCapabilityRegistered(ev.capabilityUsed)) {
+    errors.push(
+      `Capability "${ev.capabilityUsed}" is not registered in CAPABILITY_REGISTRY`,
+    );
+    return { passed: false, errors, derivedCompletionState: false };
+  }
+
+  // 2. CapabilityUsed must be allowed by plan (only if plan has allowedCapabilities)
   const allowed = executionPlan.allowedCapabilities ?? [];
   if (allowed.length > 0 && !allowed.includes(ev.capabilityUsed)) {
     errors.push(
       `Capability "${ev.capabilityUsed}" not in plan allowedCapabilities`,
     );
     return { passed: false, errors, derivedCompletionState: false };
+  }
+
+  // 3. CapabilityUsed must be in step.requiredCapabilities (if defined)
+  const stepRequired = step.requiredCapabilities;
+  if (stepRequired !== undefined && Array.isArray(stepRequired)) {
+    if (!stepRequired.includes(ev.capabilityUsed)) {
+      errors.push(
+        `Capability "${ev.capabilityUsed}" not in step ${ev.stepId} requiredCapabilities`,
+      );
+      return { passed: false, errors, derivedCompletionState: false };
+    }
+  }
+
+  // 4. Human confirmation required enforcement
+  if (requiresHumanConfirmation(ev.capabilityUsed)) {
+    if (
+      !ev.humanConfirmationProof ||
+      ev.humanConfirmationProof.trim().length === 0
+    ) {
+      errors.push(
+        `Capability "${ev.capabilityUsed}" requires human confirmation but humanConfirmationProof is empty`,
+      );
+      return { passed: false, errors, derivedCompletionState: false };
+    }
   }
 
   // EvidenceType must match one of the step's referenced DoD items' verification method

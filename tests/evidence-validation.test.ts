@@ -7,6 +7,7 @@ import {
 import { SESSION_SCHEMA_VERSION } from "../src/session/schemas.js";
 import type { DefinitionOfDone } from "../src/session/schemas.js";
 import type { RunnerEvidence } from "../src/session/runner-contract.js";
+import { getAllCapabilityIds } from "../src/session/capabilities.js";
 
 const SESSION_ID = "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d";
 const EVIDENCE_ID = "d4e5f6a7-b8c9-4d0e-8f2a-3b4c5d6e7f8a";
@@ -83,7 +84,14 @@ describe("validateRunnerEvidence", () => {
       const ev = validEvidence({ capabilityUsed: "forbidden_cap" });
       const r = validateRunnerEvidence(ev, minimalDoD(), minimalPlan(), []);
       expect(r.passed).toBe(false);
-      expect(r.errors.some((e) => e.includes("Capability") && e.includes("allowedCapabilities"))).toBe(true);
+      // Error should mention capability not registered or not in allowedCapabilities
+      expect(
+        r.errors.some(
+          (e) =>
+            (e.includes("Capability") && e.includes("allowedCapabilities")) ||
+            e.includes("not registered"),
+        ),
+      ).toBe(true);
     });
 
     it("rejects step not in plan", () => {
@@ -192,8 +200,10 @@ describe("validateRunnerEvidence", () => {
     it("accepts when allowedCapabilities is empty (no cap check)", () => {
       const plan = minimalPlan();
       plan.allowedCapabilities = [];
+      // Use a registered capability since we now require all capabilities to be registered
+      const registeredCap = getAllCapabilityIds()[0] || "read_only";
       const r = validateRunnerEvidence(
-        validEvidence({ capabilityUsed: "any" }),
+        validEvidence({ capabilityUsed: registeredCap }),
         minimalDoD(),
         plan,
         [],

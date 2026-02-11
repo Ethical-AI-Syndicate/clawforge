@@ -3,6 +3,4 @@ dist/
 *.tgz
 sessions/
 .claude/
-review-planb.cjs
-review-planc.cjs
-review-session.cjs
+review-*.cjs

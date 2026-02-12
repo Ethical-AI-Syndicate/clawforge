@@ -67,13 +67,9 @@ ClawForge orchestrates your AI agents without managing their lifecycles:
 
 **Prerequisites**: Node.js 20+ and pnpm
 
-```bash
-# Clone and install
-git clone https://github.com/Ethical-AI-Syndicate/clawforge
-cd clawforge
-pnpm install
-pnpm build
+See [Installation](#installation) below for setup instructions.
 
+```bash
 # Initialize your workspace (creates ~/.clawforge/)
 pnpm clawctl init
 
@@ -190,6 +186,7 @@ Both produce self-contained evidence bundles. See
 ## Installation
 
 ```bash
+# Clone and install
 git clone https://github.com/Ethical-AI-Syndicate/clawforge
 cd clawforge
 pnpm install

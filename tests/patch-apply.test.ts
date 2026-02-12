@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { provePatchApplies } from "../src/session/patch-apply.js";
@@ -19,6 +19,7 @@ describe("Patch Applicability Prover", () => {
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), "patch-apply-test-"));
     projectRoot = join(testDir, "project");
+    mkdirSync(projectRoot, { recursive: true });
 
     // Create test files
     writeFileSync(

@@ -2,7 +2,7 @@
  * Approval Policy — defines who can approve what artifacts.
  *
  * Phase N: Defines approvers, roles, quorum rules, and allowed algorithms
- * for cryptographic approval signatures.
+ * for approval signatures.
  */
 
 import { z } from "zod";

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -8,6 +8,7 @@ import {
   type RepoSnapshot,
 } from "../src/session/repo-snapshot.js";
 import { SessionError } from "../src/session/errors.js";
+import { sha256Hex } from "../src/session/crypto.js";
 
 describe("Repo Snapshot Builder", () => {
   let testDir: string;
@@ -17,6 +18,7 @@ describe("Repo Snapshot Builder", () => {
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), "repo-snapshot-test-"));
     projectRoot = join(testDir, "project");
+    mkdirSync(projectRoot, { recursive: true });
   });
 
   afterEach(() => {
@@ -93,6 +95,7 @@ describe("Repo Snapshot Builder", () => {
   });
 
   it("should normalize paths to POSIX style", () => {
+    mkdirSync(join(projectRoot, "src"), { recursive: true });
     writeFileSync(join(projectRoot, "src", "file.ts"), "export const a = 1;");
 
     const snapshot = buildRepoSnapshot({
@@ -121,7 +124,6 @@ describe("Repo Snapshot Builder", () => {
     expect(file).toBeDefined();
 
     // Hash should match content
-    const { sha256Hex } = require("../src/session/crypto.js");
     const expectedHash = sha256Hex(content);
     expect(file!.contentHash).toBe(expectedHash);
   });
@@ -172,6 +174,7 @@ describe("Repo Snapshot Builder", () => {
   });
 
   it("should handle subdirectories", () => {
+    mkdirSync(join(projectRoot, "src", "nested"), { recursive: true });
     writeFileSync(join(projectRoot, "src", "file1.ts"), "export const a = 1;");
     writeFileSync(join(projectRoot, "src", "nested", "file2.ts"), "export const b = 2;");
 

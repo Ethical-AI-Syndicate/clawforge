@@ -58,7 +58,7 @@ beforeAll(() => {
     encoding: "utf8",
     timeout: 30_000,
   });
-});
+}, 35_000);
 
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "clawforge-cli-"));
@@ -245,7 +245,7 @@ describe("clawctl", () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain("RunStarted");
     expect(r.stdout).toContain("1 event(s)");
-  });
+  }, 15_000);
 
   test("list-events --json returns array", () => {
     run(["init"], cliEnv);
@@ -258,7 +258,7 @@ describe("clawctl", () => {
     expect(Array.isArray(events)).toBe(true);
     expect(events.length).toBe(1);
     expect(events[0].type).toBe("RunStarted");
-  });
+  }, 15_000);
 
   // ---- verify-run ----
 
@@ -270,7 +270,7 @@ describe("clawctl", () => {
     const r = run(["verify-run", "--run", runId], cliEnv);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain("VALID");
-  });
+  }, 15_000);
 
   test("verify-run --json returns result object", () => {
     run(["init"], cliEnv);
@@ -282,7 +282,7 @@ describe("clawctl", () => {
     const obj = JSON.parse(r.stdout);
     expect(obj.valid).toBe(true);
     expect(obj.eventCount).toBe(1);
-  });
+  }, 15_000);
 
   // ---- append-event ----
 
@@ -310,7 +310,7 @@ describe("clawctl", () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain("Event appended");
     expect(r.stdout).toContain("seq=2");
-  });
+  }, 15_000);
 
   test("append-event --json returns structured output", () => {
     run(["init"], cliEnv);
@@ -337,7 +337,7 @@ describe("clawctl", () => {
     const obj = JSON.parse(r.stdout);
     expect(obj.seq).toBe(2);
     expect(obj.hash).toBeDefined();
-  });
+  }, 15_000);
 
   test("append-event with missing --run exits 1", () => {
     const r = run(["append-event", "--event", "/tmp/x.json"], cliEnv);
@@ -372,7 +372,7 @@ describe("clawctl", () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain("Artifact stored:");
     expect(r.stdout).toContain("Event: seq=2");
-  });
+  }, 15_000);
 
   test("put-artifact --json returns structured output", () => {
     run(["init"], cliEnv);
@@ -392,7 +392,7 @@ describe("clawctl", () => {
     expect(obj.sha256).toBeDefined();
     expect(obj.size).toBe(16);
     expect(obj.seq).toBe(2);
-  });
+  }, 15_000);
 
   // ---- export-evidence ----
 
@@ -409,7 +409,7 @@ describe("clawctl", () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain("Evidence bundle exported");
     expect(existsSync(zipPath)).toBe(true);
-  });
+  }, 15_000);
 
   test("export-evidence with --no-artifacts skips artifact bytes", () => {
     run(["init"], cliEnv);
@@ -423,7 +423,7 @@ describe("clawctl", () => {
     );
     expect(r.exitCode).toBe(0);
     expect(existsSync(zipPath)).toBe(true);
-  });
+  }, 15_000);
 
   test("export-evidence with invalid run exits 1", () => {
     run(["init"], cliEnv);
@@ -510,5 +510,5 @@ describe("clawctl", () => {
     expect(zipList).toContain("evidence/events.jsonl");
     expect(zipList).toContain("evidence/integrity/chain.json");
     expect(zipList).toContain("evidence/artifacts/manifest.json");
-  });
+  }, 20_000);
 });

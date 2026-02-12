@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildSymbolIndex, type SymbolIndex } from "../src/session/symbol-index.js";
@@ -12,6 +12,10 @@ describe("Symbol Index Builder", () => {
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), "symbol-index-test-"));
     projectRoot = join(testDir, "project");
+    mkdirSync(projectRoot, { recursive: true });
+    mkdirSync(join(projectRoot, "src"), { recursive: true });
+    mkdirSync(join(projectRoot, "other"), { recursive: true });
+    mkdirSync(join(projectRoot, "node_modules", "external"), { recursive: true });
     writeFileSync(join(projectRoot, "tsconfig.json"), JSON.stringify({
       compilerOptions: {
         target: "ES2022",

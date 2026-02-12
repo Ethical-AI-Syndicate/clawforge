@@ -67,14 +67,14 @@ const FORBIDDEN_FILESYSTEM_PATTERNS: ReadonlyArray<string> = [
   "chown",
 ];
 
-// Process spawning patterns
+// Process spawning patterns (forbidden in scanned content)
 const FORBIDDEN_PROCESS_PATTERNS: ReadonlyArray<string> = [
   "child_process",
   "spawn(",
   "exec(",
   "execFile(",
   "fork(",
-];
+] as const;
 
 // Vague placeholders
 const FORBIDDEN_VAGUE_PATTERNS: ReadonlyArray<string> = [

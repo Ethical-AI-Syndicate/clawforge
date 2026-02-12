@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { validatePatchAgainstSymbols } from "../src/session/symbol-validate.js";
@@ -21,6 +21,8 @@ describe("Symbol Validation", () => {
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), "symbol-validate-test-"));
     projectRoot = join(testDir, "project");
+    mkdirSync(projectRoot, { recursive: true });
+    mkdirSync(join(projectRoot, "src"), { recursive: true });
 
     // Setup tsconfig
     writeFileSync(join(projectRoot, "tsconfig.json"), JSON.stringify({

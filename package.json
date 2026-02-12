@@ -13,7 +13,8 @@
     "README.md"
   ],
   "bin": {
-    "clawctl": "dist/cli/index.js"
+    "clawctl": "dist/cli/index.js",
+    "clforge-verify": "dist/verify/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

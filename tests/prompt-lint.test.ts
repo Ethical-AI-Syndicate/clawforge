@@ -14,9 +14,9 @@ import { computePlanHash } from "../src/session/plan-hash.js";
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const SESSION_ID = "123e4567-e89b-12d3-a456-426614174000";
-const DOD_ID = "223e4567-e89b-12d3-a456-426614174000";
-const LOCK_ID = "323e4567-e89b-12d3-a456-426614174000";
+const SESSION_ID = "123e4567-e89b-4123-a456-426614174000";
+const DOD_ID = "223e4567-e89b-4123-a456-426614174000";
+const LOCK_ID = "323e4567-e89b-4123-a456-426614174000";
 
 function createDoD(): DefinitionOfDone {
   return {
@@ -86,7 +86,7 @@ function createCapsule(): PromptCapsule {
   const capsule: PromptCapsule = {
     schemaVersion: SESSION_SCHEMA_VERSION,
     sessionId: SESSION_ID,
-    capsuleId: "423e4567-e89b-12d3-a456-426614174000",
+    capsuleId: "423e4567-e89b-4123-a456-426614174000",
     lockId: LOCK_ID,
     planHash,
     createdAt: "2024-01-01T00:00:00.000Z",
@@ -137,7 +137,7 @@ function createResponse(capsule: PromptCapsule): ModelResponseArtifact {
     schemaVersion: SESSION_SCHEMA_VERSION,
     sessionId: SESSION_ID,
     capsuleId: capsule.capsuleId,
-    responseId: "523e4567-e89b-12d3-a456-426614174000",
+    responseId: "523e4567-e89b-4123-a456-426614174000",
     createdAt: "2024-01-01T00:00:00.000Z",
     model: {
       provider: capsule.model.provider,
@@ -260,6 +260,7 @@ describe("lintPromptCapsule", () => {
   it("rejects capsule with capability not in plan.allowedCapabilities", () => {
     const capsule = createCapsule();
     capsule.boundaries.allowedCapabilities.push("validate_schema");
+    capsule.hash.capsuleHash = computeCapsuleHash(capsule);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -268,6 +269,7 @@ describe("lintPromptCapsule", () => {
     
     // But if we use a capability not in plan
     capsule.boundaries.allowedCapabilities = ["compute_hash"];
+    capsule.hash.capsuleHash = computeCapsuleHash(capsule);
     expect(() => lintPromptCapsule(capsule, dod, lock, plan)).toThrow(SessionError);
   });
 
@@ -392,6 +394,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.proposedChanges[0].targetPath = "src/unknown.ts";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -408,6 +411,7 @@ describe("lintModelResponse", () => {
     const response = createResponse(capsule);
     response.output.proposedChanges[0].changeType = "add_file";
     response.output.proposedChanges[0].targetPath = "src/new-file.ts";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -422,9 +426,11 @@ describe("lintModelResponse", () => {
   it("allows add_file when file is pre-approved", () => {
     const capsule = createCapsule();
     capsule.boundaries.allowedFiles.push("src/new-file.ts");
+    capsule.hash.capsuleHash = computeCapsuleHash(capsule);
     const response = createResponse(capsule);
     response.output.proposedChanges[0].changeType = "add_file";
     response.output.proposedChanges[0].targetPath = "src/new-file.ts";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -435,6 +441,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.proposedChanges[0].referencedDoDItems.push("dod-item-2");
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -450,6 +457,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.proposedChanges[0].referencedPlanStepIds.push("step-2");
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -469,6 +477,7 @@ describe("lintModelResponse", () => {
       ref: "src/unknown.ts",
       note: "Unknown file",
     });
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -484,6 +493,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.summary = "This contains TODO";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -498,7 +508,8 @@ describe("lintModelResponse", () => {
   it("rejects response containing shell command", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
-    response.output.summary = "Run rm -rf";
+    response.output.summary = "Run sudo bash to install";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -514,6 +525,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.summary = "Fetch from https://example.com";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -529,6 +541,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.summary = "This is a post-hoc analysis";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -539,7 +552,9 @@ describe("lintModelResponse", () => {
   it("rejects patch importing ../secrets", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
-    response.output.proposedChanges[0].patch = "import '../secrets'";
+    // Use path that normalizes to a file not in allowedFiles (symbol-boundary rejects ".." so use ./secrets)
+    response.output.proposedChanges[0].patch = "import './secrets'";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -555,6 +570,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.proposedChanges[0].patch = "import './newModule'";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -570,6 +586,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.proposedChanges[0].patch = "import axios from 'axios'";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();
@@ -585,6 +602,7 @@ describe("lintModelResponse", () => {
     const capsule = createCapsule();
     const response = createResponse(capsule);
     response.output.proposedChanges[0].patch = "import _ from 'lodash'";
+    response.hash.responseHash = computeResponseHash(response);
     const dod = createDoD();
     const lock = createLock();
     const plan = createPlan();

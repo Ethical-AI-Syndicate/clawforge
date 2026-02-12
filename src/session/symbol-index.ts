@@ -104,16 +104,19 @@ function extractExports(
     if (node.exportClause && ts.isNamedExports(node.exportClause)) {
       for (const element of node.exportClause.elements) {
         const name = element.name.text;
-        const location = sourceFile.getLineAndCharacterOfPosition(
-          element.getStart(),
-        );
-        exports.push({
-          name,
-          kind: "const", // Re-export, kind unknown
-          isDefault: false,
-          isTypeOnly: node.isTypeOnly,
-          location: { line: location.line + 1, col: location.character + 1 },
-        });
+        try {
+          const startPos = element.getStart(sourceFile);
+          const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+          exports.push({
+            name,
+            kind: "const", // Re-export, kind unknown
+            isDefault: false,
+            isTypeOnly: node.isTypeOnly,
+            location: { line: location.line + 1, col: location.character + 1 },
+          });
+        } catch {
+          // Skip if element doesn't have proper source file context
+        }
       }
     }
     return;
@@ -121,79 +124,108 @@ function extractExports(
 
   // Export assignment: export = ...
   if (ts.isExportAssignment(node)) {
-    const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    exports.push({
-      name: "default",
-      kind: "default",
-      isDefault: true,
-      isTypeOnly: false,
-      location: { line: location.line + 1, col: location.character + 1 },
-    });
+    try {
+      const startPos = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+      exports.push({
+        name: "default",
+        kind: "default",
+        isDefault: true,
+        isTypeOnly: false,
+        location: { line: location.line + 1, col: location.character + 1 },
+      });
+    } catch {
+      // Skip if node doesn't have proper source file context
+    }
     return;
   }
 
   // Named exports: export function/class/interface/type/const
   if (ts.isFunctionDeclaration(node) && node.name) {
-    const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    exports.push({
-      name: node.name.text,
-      kind: "function",
-      isDefault: false,
-      isTypeOnly: false,
-      location: { line: location.line + 1, col: location.character + 1 },
-    });
-    return;
+    try {
+      const startPos = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+      exports.push({
+        name: node.name.text,
+        kind: "function",
+        isDefault: false,
+        isTypeOnly: false,
+        location: { line: location.line + 1, col: location.character + 1 },
+      });
+      return;
+    } catch {
+      // Skip if node doesn't have proper source file context
+      return;
+    }
   }
 
   if (ts.isClassDeclaration(node) && node.name) {
-    const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    exports.push({
-      name: node.name.text,
-      kind: "class",
-      isDefault: false,
-      isTypeOnly: false,
-      location: { line: location.line + 1, col: location.character + 1 },
-    });
+    try {
+      const startPos = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+      exports.push({
+        name: node.name.text,
+        kind: "class",
+        isDefault: false,
+        isTypeOnly: false,
+        location: { line: location.line + 1, col: location.character + 1 },
+      });
+    } catch {
+      // Skip if node doesn't have proper source file context
+    }
     return;
   }
 
   if (ts.isInterfaceDeclaration(node) && node.name) {
-    const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    exports.push({
-      name: node.name.text,
-      kind: "interface",
-      isDefault: false,
-      isTypeOnly: true,
-      location: { line: location.line + 1, col: location.character + 1 },
-    });
+    try {
+      const startPos = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+      exports.push({
+        name: node.name.text,
+        kind: "interface",
+        isDefault: false,
+        isTypeOnly: true,
+        location: { line: location.line + 1, col: location.character + 1 },
+      });
+    } catch {
+      // Skip if node doesn't have proper source file context
+    }
     return;
   }
 
   if (ts.isTypeAliasDeclaration(node) && node.name) {
-    const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    exports.push({
-      name: node.name.text,
-      kind: "type",
-      isDefault: false,
-      isTypeOnly: true,
-      location: { line: location.line + 1, col: location.character + 1 },
-    });
+    try {
+      const startPos = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+      exports.push({
+        name: node.name.text,
+        kind: "type",
+        isDefault: false,
+        isTypeOnly: true,
+        location: { line: location.line + 1, col: location.character + 1 },
+      });
+    } catch {
+      // Skip if node doesn't have proper source file context
+    }
     return;
   }
 
   if (ts.isVariableStatement(node)) {
     for (const declaration of node.declarationList.declarations) {
       if (ts.isIdentifier(declaration.name)) {
-        const location = sourceFile.getLineAndCharacterOfPosition(
-          declaration.getStart(),
-        );
-        exports.push({
-          name: declaration.name.text,
-          kind: "const",
-          isDefault: false,
-          isTypeOnly: false,
-          location: { line: location.line + 1, col: location.character + 1 },
-        });
+        try {
+          const startPos = declaration.getStart(sourceFile);
+          const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+          exports.push({
+            name: declaration.name.text,
+            kind: "const",
+            isDefault: false,
+            isTypeOnly: false,
+            location: { line: location.line + 1, col: location.character + 1 },
+          });
+        } catch {
+          // Skip if declaration doesn't have proper source file context
+        }
       }
     }
     return;
@@ -201,14 +233,19 @@ function extractExports(
 
   // Default export: export default ...
   if (ts.isExportSpecifier(node)) {
-    const location = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-    exports.push({
-      name: node.name.text,
-      kind: "default",
-      isDefault: true,
-      isTypeOnly: false,
-      location: { line: location.line + 1, col: location.character + 1 },
-    });
+    try {
+      const startPos = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(startPos);
+      exports.push({
+        name: node.name.text,
+        kind: "default",
+        isDefault: true,
+        isTypeOnly: false,
+        location: { line: location.line + 1, col: location.character + 1 },
+      });
+    } catch {
+      // Skip if node doesn't have proper source file context
+    }
     return;
   }
 }
@@ -459,8 +496,9 @@ export function buildSymbolIndex(
     files,
   };
 
-  // Compute hash
-  const canonical = canonicalJson(index);
+  // Compute hash from content only (exclude generatedAt for deterministic hash)
+  const { generatedAt, ...indexForHash } = index;
+  const canonical = canonicalJson(indexForHash);
   const symbolIndexHash = sha256Hex(canonical);
 
   return {

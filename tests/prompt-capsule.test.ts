@@ -6,9 +6,9 @@ import { SESSION_SCHEMA_VERSION } from "../src/session/schemas.js";
 describe("prompt-capsule", () => {
   const createValidCapsule = (): any => ({
     schemaVersion: SESSION_SCHEMA_VERSION,
-    sessionId: "123e4567-e89b-12d3-a456-426614174000",
-    capsuleId: "223e4567-e89b-12d3-a456-426614174000",
-    lockId: "323e4567-e89b-12d3-a456-426614174000",
+    sessionId: "123e4567-e89b-4123-a456-426614174000",
+    capsuleId: "223e4567-e89b-4123-a456-426614174000",
+    lockId: "323e4567-e89b-4123-a456-426614174000",
     planHash: "a".repeat(64),
     createdAt: "2024-01-01T00:00:00.000Z",
     createdBy: {

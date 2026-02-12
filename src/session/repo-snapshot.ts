@@ -72,12 +72,13 @@ function validatePath(path: string): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Compute snapshot hash from normalized snapshot (excluding snapshotHash field).
+ * Compute snapshot hash from content-only fields (excluding snapshotHash, snapshotId, generatedAt).
+ * Same file set and content produces the same hash across builds.
  */
 export function computeSnapshotHash(snapshot: RepoSnapshot): string {
-  // Create normalized copy without snapshotHash
-  const { snapshotHash, ...normalized } = snapshot;
-  const canonical = canonicalJson(normalized);
+  const { snapshotHash, snapshotId, generatedAt, ...rest } = snapshot;
+  const forHash = { ...rest };
+  const canonical = canonicalJson(forHash);
   return sha256Hex(canonical);
 }
 

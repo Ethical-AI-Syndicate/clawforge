@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { SessionError } from "../src/session/errors.js";
@@ -33,6 +33,13 @@ import {
   writeRunnerAttestationJson,
   writeSymbolIndexJson,
   writePolicyEvaluationJson,
+  readDecisionLockJson,
+  readExecutionPlanJson,
+  readPromptCapsuleJson,
+  readRepoSnapshotJson,
+  readAllStepPacketsJson,
+  readReviewerReports,
+  readRunnerEvidenceJson,
 } from "../src/session/persistence.js";
 import { canonicalJson } from "../src/audit/canonical.js";
 import { sha256Hex } from "../src/session/crypto.js";
@@ -249,7 +256,8 @@ describe("Sealed Change Package Validator", () => {
     };
     writeReviewerReportJson(sessionRoot, SESSION_ID, "step-1", "static", reviewerReport);
 
-    // Create Evidence
+    // Create Evidence (use actual plan hash so chain validates)
+    const actualPlanHash = computePlanHash(plan);
     const evidence = {
       schemaVersion: SESSION_SCHEMA_VERSION,
       sessionId: SESSION_ID,
@@ -261,161 +269,49 @@ describe("Sealed Change Package Validator", () => {
       verificationMetadata: {},
       capabilityUsed: "read_file",
       humanConfirmationProof: "proof",
-      planHash: HASH,
-      prevEvidenceHash: null,
-    };
-    writeRunnerEvidenceJson(sessionRoot, SESSION_ID, evidence);
-  }
-
-  function createValidSCP(): any {
-    const lock = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      lockId: LOCK_ID,
-      sessionId: SESSION_ID,
-      dodId: DOD_ID,
-      goal: GOAL,
-      nonGoals: [],
-      interfaces: [],
-      invariants: [],
-      constraints: [],
-      failureModes: [],
-      risksAndTradeoffs: [],
-      status: "approved",
-      createdAt: TS,
-      createdBy: { actorId: "user1", actorType: "human" },
-    };
-
-    const plan = {
-      sessionId: SESSION_ID,
-      dodId: DOD_ID,
-      lockId: LOCK_ID,
-      steps: [
-        {
-          stepId: "step-1",
-          references: ["dod-1"],
-          requiredCapabilities: ["read_file"],
-        },
-      ],
-      allowedCapabilities: ["read_file"],
-    };
-
-    const capsule = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      sessionId: SESSION_ID,
-      capsuleId: "capsule-1",
-      lockId: LOCK_ID,
-      planHash: HASH,
-      createdAt: TS,
-      createdBy: { actorId: "user1", actorType: "human" },
-      model: {
-        provider: "openai",
-        model: "gpt-4",
-        temperature: 0.7,
-        maxTokens: 2000,
-      },
-      intent: {
-        task: "Implement feature",
-        constraints: [],
-      },
-      context: {
-        relevantFiles: [],
-        relevantSymbols: [],
-      },
-      boundaries: {
-        allowedFiles: ["file1.ts"],
-        allowedSymbols: [],
-        allowedDoDItems: ["dod-1"],
-        allowedPlanStepIds: ["step-1"],
-        allowedCapabilities: ["read_file"],
-        disallowedPatterns: [],
-        allowedExternalModules: [],
-      },
-      inputs: {
-        fileDigests: [{ path: "file1.ts", sha256: HASH }],
-        partialCoverage: false,
-      },
-      hash: {
-        capsuleHash: HASH,
-      },
-    };
-
-    const snapshot = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      sessionId: SESSION_ID,
-      snapshotId: "snapshot-1",
-      generatedAt: TS,
-      rootDescriptor: "test",
-      includedFiles: [{ path: "file1.ts", contentHash: HASH }],
-      snapshotHash: HASH,
-    };
-
-    const stepPacket = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      sessionId: SESSION_ID,
-      lockId: LOCK_ID,
-      stepId: "step-1",
-      planHash: HASH,
-      capsuleHash: HASH,
-      snapshotHash: HASH,
-      goalReference: GOAL,
-      dodId: DOD_ID,
-      dodItemRefs: ["dod-1"],
-      allowedFiles: ["file1.ts"],
-      allowedSymbols: [],
-      requiredCapabilities: ["read_file"],
-      reviewerSequence: ["static", "security", "qa"],
-      context: {
-        fileDigests: [{ path: "file1.ts", sha256: HASH }],
-      },
-      createdAt: TS,
-      packetHash: "",
-    };
-    const packetHash = computeStepPacketHash(stepPacket as any);
-    stepPacket.packetHash = packetHash;
-
-    const patchArtifact = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      sessionId: SESSION_ID,
-      stepId: "step-1",
-      patchId: uuidv4(),
-      filesChanged: [
-        {
-          path: "file1.ts",
-          changeType: "modify" as const,
-          diff: "--- a/file1.ts\n+++ b/file1.ts\n@@ -1 +1 @@\n-old\n+new",
-        },
-      ],
-      declaredImports: [],
-      declaredNewDependencies: [],
-    };
-    const patchHash = sha256Hex(canonicalJson(patchArtifact));
-
-    const reviewerReport = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      sessionId: SESSION_ID,
-      stepId: "step-1",
-      reviewerRole: "static" as const,
-      passed: true,
-      violations: [],
-      notes: [],
-    };
-    const reviewerHash = sha256Hex(canonicalJson(reviewerReport));
-
-    const evidence = {
-      schemaVersion: SESSION_SCHEMA_VERSION,
-      sessionId: SESSION_ID,
-      stepId: "step-1",
-      evidenceId: uuidv4(),
-      timestamp: TS,
-      evidenceType: "test_result",
-      artifactHash: HASH,
-      verificationMetadata: {},
-      capabilityUsed: "read_file",
-      humanConfirmationProof: "proof",
-      planHash: HASH,
+      planHash: actualPlanHash,
       prevEvidenceHash: null,
     };
     const evidenceHash = computeEvidenceHash(evidence);
+    (evidence as any).evidenceHash = evidenceHash;
+    writeRunnerEvidenceJson(sessionRoot, SESSION_ID, [evidence]);
+  }
+
+  /** Build SCP from artifacts on disk (session dir = join(sessionRoot, SESSION_ID)). */
+  function createValidSCP(sessionRootPath: string): any {
+    const lock = readDecisionLockJson(sessionRootPath, SESSION_ID);
+    const planJson = readExecutionPlanJson(sessionRootPath, SESSION_ID);
+    const capsule = readPromptCapsuleJson(sessionRootPath, SESSION_ID);
+    const snapshot = readRepoSnapshotJson(sessionRootPath, SESSION_ID);
+    if (!lock || !planJson || !capsule || !snapshot) {
+      throw new Error("setupMinimalSession must run first");
+    }
+    const plan = planJson as { steps?: { stepId: string }[] };
+    const stepPackets = readAllStepPacketsJson(sessionRootPath, SESSION_ID);
+    const sessionDir = join(sessionRootPath, SESSION_ID);
+    const patchHashes: string[] = [];
+    if (plan.steps) {
+      for (const step of plan.steps) {
+        const patchPath = join(sessionDir, `patch-${step.stepId}.json`);
+        if (existsSync(patchPath)) {
+          const patch = JSON.parse(readFileSync(patchPath, "utf8"));
+          patchHashes.push(sha256Hex(canonicalJson(patch)));
+        }
+      }
+    }
+    const reviewerHashes: string[] = [];
+    if (plan.steps) {
+      for (const step of plan.steps) {
+        const reports = readReviewerReports(sessionRootPath, SESSION_ID, step.stepId);
+        for (const r of reports) {
+          reviewerHashes.push(sha256Hex(canonicalJson(r)));
+        }
+      }
+    }
+    const evidenceList = readRunnerEvidenceJson(sessionRootPath, SESSION_ID);
+    const evidenceHashes = evidenceList
+      ? evidenceList.map((e) => computeEvidenceHash(e)).sort()
+      : [];
 
     const scpData = {
       schemaVersion: SESSION_SCHEMA_VERSION,
@@ -426,10 +322,10 @@ describe("Sealed Change Package Validator", () => {
       planHash: computePlanHash(plan),
       capsuleHash: computeCapsuleHash(capsule),
       snapshotHash: computeSnapshotHash(snapshot),
-      stepPacketHashes: [packetHash].sort(),
-      patchArtifactHashes: [patchHash].sort(),
-      reviewerReportHashes: [reviewerHash].sort(),
-      evidenceChainHashes: [evidenceHash].sort(),
+      stepPacketHashes: stepPackets.map((p) => computeStepPacketHash(p)).sort(),
+      patchArtifactHashes: patchHashes.sort(),
+      reviewerReportHashes: reviewerHashes.sort(),
+      evidenceChainHashes: evidenceHashes,
       packageHash: "",
     };
 
@@ -443,7 +339,7 @@ describe("Sealed Change Package Validator", () => {
   describe("Valid Package", () => {
     it("should validate fully valid session", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).not.toThrow();
@@ -453,7 +349,7 @@ describe("Sealed Change Package Validator", () => {
   describe("Tamper Detection", () => {
     it("should reject tampered patch artifact", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
       // Tamper patch artifact
@@ -469,7 +365,7 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject tampered execution plan", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
       // Tamper execution plan
@@ -485,7 +381,7 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject tampered evidence chain", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
       // Tamper evidence
@@ -505,7 +401,7 @@ describe("Sealed Change Package Validator", () => {
           prevEvidenceHash: null,
         },
       ];
-      writeRunnerEvidenceJson(sessionRoot, SESSION_ID, evidenceList[0]);
+      writeRunnerEvidenceJson(sessionRoot, SESSION_ID, evidenceList);
 
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(SessionError);
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(/hash mismatch/);
@@ -602,7 +498,7 @@ describe("Sealed Change Package Validator", () => {
         bundleHash: "bundle-hash",
       });
 
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       scp.approvalPolicyHash = sha256Hex(canonicalJson({
         schemaVersion: SESSION_SCHEMA_VERSION,
         sessionId: SESSION_ID,
@@ -642,11 +538,11 @@ describe("Sealed Change Package Validator", () => {
       scp.packageHash = computeSealedChangePackageHash(scp);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
-      // Tamper approval bundle
+      // Tamper approval bundle (artifactHash is included in bundle hash)
       const bundlePath = join(sessionRoot, SESSION_ID, "approval-bundle.json");
       const bundleContent = readFileSync(bundlePath, "utf8");
       const bundle = JSON.parse(bundleContent);
-      bundle.signatures[0].signature = "TAMPERED";
+      bundle.signatures[0].artifactHash = "b".repeat(64);
       writeFileSync(bundlePath, canonicalJson(bundle), "utf8");
 
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(SessionError);
@@ -655,7 +551,7 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject tampered anchor", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       
       const anchor = {
         schemaVersion: SESSION_SCHEMA_VERSION,
@@ -684,8 +580,9 @@ describe("Sealed Change Package Validator", () => {
   describe("Missing Artifacts", () => {
     it("should reject missing step packet", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
-      scp.stepPacketHashes = ["missing-hash"];
+      const scp = createValidSCP(sessionRoot);
+      // SCP claims 0 step packets but disk has 1 -> count mismatch
+      scp.stepPacketHashes = [];
       scp.packageHash = computeSealedChangePackageHash(scp);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
@@ -695,10 +592,9 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject missing patch artifact", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
-      scp.patchArtifactHashes = ["missing-hash"];
-      scp.packageHash = computeSealedChangePackageHash(scp);
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
+      rmSync(join(sessionRoot, SESSION_ID, "patch-step-1.json"), { force: true });
 
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(SessionError);
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(/count mismatch/);
@@ -706,10 +602,11 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject missing reviewer report", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
-      scp.reviewerReportHashes = ["missing-hash"];
-      scp.packageHash = computeSealedChangePackageHash(scp);
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
+      const sessionDir = join(sessionRoot, SESSION_ID);
+      const reviewerFile = readdirSync(sessionDir).find((f) => f.startsWith("reviewer-step-1-"));
+      if (reviewerFile) rmSync(join(sessionDir, reviewerFile), { force: true });
 
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(SessionError);
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(/count mismatch/);
@@ -717,10 +614,9 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject missing evidence item", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
-      scp.evidenceChainHashes = ["missing-hash"];
-      scp.packageHash = computeSealedChangePackageHash(scp);
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
+      rmSync(join(sessionRoot, SESSION_ID, "runner-evidence.json"), { force: true });
 
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(SessionError);
       expect(() => validateSealedChangePackage(SESSION_ID, sessionRoot)).toThrow(/count mismatch/);
@@ -728,7 +624,7 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject missing DecisionLock", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
       // Delete DecisionLock
@@ -743,10 +639,9 @@ describe("Sealed Change Package Validator", () => {
   describe("Binding Violations", () => {
     it("should reject step packet hash not in array", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
-      
-      // Add extra step packet hash that doesn't exist
-      scp.stepPacketHashes.push("nonexistent-hash");
+      const scp = createValidSCP(sessionRoot);
+      // Add extra step packet hash (valid 64-char hex) so SCP lists 2, disk has 1
+      scp.stepPacketHashes.push("b".repeat(64));
       scp.stepPacketHashes.sort();
       scp.packageHash = computeSealedChangePackageHash(scp);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
@@ -757,10 +652,9 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject patch artifact hash not in array", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
-      
-      // Add extra patch artifact hash that doesn't exist
-      scp.patchArtifactHashes.push("nonexistent-hash");
+      const scp = createValidSCP(sessionRoot);
+      // Add extra patch artifact hash (valid 64-char hex) so SCP lists 2, disk has 1
+      scp.patchArtifactHashes.push("b".repeat(64));
       scp.patchArtifactHashes.sort();
       scp.packageHash = computeSealedChangePackageHash(scp);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
@@ -773,7 +667,7 @@ describe("Sealed Change Package Validator", () => {
   describe("Optional Artifacts", () => {
     it("should handle missing optional artifacts correctly", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       // Don't include optional hashes
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 
@@ -782,7 +676,7 @@ describe("Sealed Change Package Validator", () => {
 
     it("should validate optional artifacts if present", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       
       // Add symbol index
       const symbolIndex = {
@@ -802,7 +696,7 @@ describe("Sealed Change Package Validator", () => {
 
     it("should reject optional artifact hash mismatch", () => {
       setupMinimalSession();
-      const scp = createValidSCP();
+      const scp = createValidSCP(sessionRoot);
       
       // Add symbol index
       const symbolIndex = {
@@ -813,7 +707,7 @@ describe("Sealed Change Package Validator", () => {
         imports: [],
       };
       writeSymbolIndexJson(sessionRoot, SESSION_ID, symbolIndex);
-      scp.symbolIndexHash = "wrong-hash";
+      scp.symbolIndexHash = "b".repeat(64); // valid hex but wrong value
       scp.packageHash = computeSealedChangePackageHash(scp);
       writeSealedChangePackageJson(sessionRoot, SESSION_ID, scp);
 

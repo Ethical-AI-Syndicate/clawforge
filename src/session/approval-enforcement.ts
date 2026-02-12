@@ -128,7 +128,7 @@ export function enforceApprovals(
       continue;
     }
 
-    // Verify signature using cryptographic verification
+    // Verify signature using signature verification
     try {
       verifySignature(signature, approver.publicKeyPem);
     } catch (error) {

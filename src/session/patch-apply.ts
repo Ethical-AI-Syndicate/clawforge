@@ -171,29 +171,27 @@ function applyHunk(
     lineIndex++;
   }
 
-  // Verify context lines match
-  let contextLineIndex = 0;
+  // Verify all hunk lines match file (context and remove), using a single file-line cursor
+  let verifyLineIndex = lineIndex;
   for (const hunkLine of hunk.lines) {
-    if (hunkLine.type === "context") {
+    if (hunkLine.type === "context" || hunkLine.type === "remove") {
       const expectedLine = hunkLine.content;
       const actualLine =
-        lineIndex + contextLineIndex < lines.length
-          ? lines[lineIndex + contextLineIndex]!
-          : undefined;
-
+        verifyLineIndex < lines.length ? lines[verifyLineIndex]! : undefined;
       if (actualLine !== expectedLine) {
+        const kind = hunkLine.type === "context" ? "Context" : "Removed";
         return {
           result: fileContent,
           conflict: {
-            filePath: "", // Will be set by caller
+            filePath: "",
             hunkIndex,
-            reason: `Context line mismatch at line ${lineIndex + contextLineIndex + 1}: expected "${expectedLine}", got "${actualLine ?? "EOF"}"`,
+            reason: `${kind} line mismatch at line ${verifyLineIndex + 1}: expected "${expectedLine}", got "${actualLine ?? "EOF"}"`,
             expectedHash: sha256Hex(expectedLine),
             actualHash: actualLine ? sha256Hex(actualLine) : undefined,
           },
         };
       }
-      contextLineIndex++;
+      verifyLineIndex++;
     }
   }
 

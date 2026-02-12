@@ -110,20 +110,19 @@ const RefusalSchema = z
 const OutputSchema = z
   .object({
     summary: z.string().min(1).max(5000),
-    proposedChanges: z.array(ChangeProposalSchema).min(1),
+    proposedChanges: z.array(ChangeProposalSchema).min(0),
     citations: z.array(CitationSchema).min(1),
     refusal: RefusalSchema.optional(),
   })
   .passthrough()
   .refine(
     (output) => {
-      // If refusal is present, proposedChanges must be empty
       if (output.refusal !== undefined) {
         return output.proposedChanges.length === 0;
       }
-      return true;
+      return output.proposedChanges.length >= 1;
     },
-    "If refusal is present, proposedChanges must be empty",
+    "If refusal is present, proposedChanges must be empty; otherwise at least one change required",
   );
 
 const ResponseHashSchema = z

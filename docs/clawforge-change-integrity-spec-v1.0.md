@@ -166,7 +166,9 @@ substrings: `$(`, `` ` ``, `;`, `&&`, `||`, `|`, `sudo`, `chmod`, `chown`,
 `bash`, `zsh`, `powershell`, `cmd.exe`, `npm`, `pnpm`, `yarn`, `node`.
 HTTP method tokens `POST`, `PUT`, `PATCH`, `DELETE` MUST NOT appear
 (case-sensitive). Whole-word matches for `rm`, `mv`, `cp`, `sh`, `go`
-MUST NOT appear.
+MUST NOT appear. All forbidden substring matching MUST be
+case-insensitive except HTTP method tokens, which MUST be matched
+case-sensitively.
 
 **Hash Computation:** See Section 3.2.2.
 
@@ -618,7 +620,8 @@ fields that are provided MUST cause validation failure.
 
 A closed set of reviewer types: `static`, `security`, `qa`, `e2e`,
 `automation`. Step Packets MUST declare a `reviewerSequence` with a
-minimum of 3 entries drawn from this set.
+minimum of 3 entries drawn from this set. The `reviewerSequence` MUST
+contain at least 2 distinct roles.
 
 **Reviewer Report:** `{ schemaVersion, sessionId, stepId, reviewerRole, passed: boolean, violations: array of string, notes: array of string }`
 
@@ -637,17 +640,30 @@ representation of the input data.
 Canonical JSON is defined as a profile of RFC 8785 (JSON Canonicalization
 Scheme) with the following protocol-specific rules:
 
-1. Object keys MUST be sorted lexicographically (Unicode code point order)
-   at every nesting level.
+1. Object keys MUST be sorted in Unicode code point order at every
+   nesting level. No Unicode normalization form (NFC, NFD, NFKC, NFKD)
+   MUST be applied before comparison. Keys MUST be compared as raw
+   UTF-8 byte sequences. This is not locale-dependent collation.
 2. Values of datetime type MUST be serialized as ISO 8601 UTC strings
    with `Z` suffix (e.g., `"2026-02-11T12:00:00.000Z"`).
-3. Undefined/absent values MUST be omitted entirely. They MUST NOT be
-   serialized as `null`.
-4. Explicit `null` values MUST be preserved as JSON `null`.
+3. Three states exist for object fields: (a) Present with a value
+   (including `null`) — serialized. (b) Present with value `undefined`
+   — omitted. (c) Absent from the object — omitted. States (b) and (c)
+   are indistinguishable in canonical JSON output. Undefined/absent
+   values MUST be omitted entirely. They MUST NOT be serialized as
+   `null`.
+4. Explicit `null` values MUST be preserved as JSON `null`. An explicit
+   `null` is distinct from an absent field.
 5. Array element order MUST be preserved unless the artifact definition
    (Section 2) specifies a canonical sort for that array.
-6. String, number, and boolean values MUST pass through unchanged.
-7. The output MUST be a single UTF-8 encoded string with no trailing
+6. Number values MUST be serialized per RFC 8785 Section 3.2.2.3.
+   Implementations MUST NOT produce differing representations for the
+   same IEEE 754 double-precision value. `NaN` and `Infinity` MUST be
+   rejected. Floating-point values SHOULD be avoided in protocol
+   artifacts; where present, they MUST round-trip identically through
+   IEEE 754 double-precision serialization.
+7. String and boolean values MUST pass through unchanged.
+8. The output MUST be a single UTF-8 encoded string with no trailing
    newline.
 
 **Pseudocode:**
@@ -806,6 +822,16 @@ is normalized to its payload fields (excluding `signature` and
 Policies MUST be sorted by `policyId`. The hash is computed over the
 sorted array of normalized policies.
 
+**Per-policy included fields:** `policyId`, `name`, `version`, `scope`,
+`rules`, `createdAt`, `createdBy`. No fields are excluded.
+
+**Per-rule included fields:** `ruleId`, `description`, `target`,
+`condition` (including `field`, `operator`, `value`), `effect`,
+`severity`. No fields are excluded.
+
+**Per-condition included fields:** `field`, `operator`, `value`. No
+fields are excluded.
+
 #### 3.2.14 Sealed Change Package Hash
 
 **Excluded fields:** `packageHash`.
@@ -847,6 +873,14 @@ signer's public key.
 **Public Key Formats:** Implementations MUST accept PEM-encoded public
 keys. Implementations MUST accept hex-encoded public keys (64–512
 characters) and convert them to PEM format before verification.
+
+**Minimum Key Size:** RSA public keys MUST be at least 2048 bits. Keys
+shorter than 2048 bits MUST be rejected during signature verification.
+
+**Key Revocation:** Key lifecycle management (issuance, rotation,
+revocation) is outside this protocol's scope. Implementations that
+require key lifecycle management SHOULD use external PKI or certificate
+transparency mechanisms.
 
 ### 3.4 Format Constraints
 
@@ -956,14 +990,49 @@ UUID v4. Duplicate nonces MUST cause validation failure with error code
 nonce uniqueness checks MAY be skipped, but nonce format validation
 MUST still be enforced.
 
+**Content artifact replay protection:** Content artifacts (Prompt Capsule,
+Model Response, Step Packet, Symbol Index, Repo Snapshot) do not carry
+explicit nonces. They are replay-protected through: (a) session ID
+binding (Section 4.3 rule 5), which prevents cross-session reuse; and
+(b) SCP hash binding (Section 4.1), which binds each artifact's content
+hash into the sealed package. Their content hashes within the SCP serve
+as uniqueness tokens. Substituting a different content artifact changes
+its hash, which mismatches the SCP's recorded hash.
+
+### 4.5 Acyclicity
+
+The artifact binding graph (Section 4.1) MUST be acyclic. Validators
+MUST reject any artifact set that produces a cycle in the binding graph.
+The validation order (Section 5) establishes a topological sort of
+artifact dependencies; any artifact that references a hash that cannot
+be computed without first computing the referencing artifact's own hash
+constitutes a cycle and MUST be rejected.
+
 ---
 
 ## 5. Validation Order
+
+Validators MUST receive the complete artifact set as input. The delivery
+mechanism (filesystem directory, archive, API payload) is outside this
+protocol's scope. Validators MUST NOT retrieve artifacts from external
+sources during validation.
 
 Validation MUST proceed in the following strict sequence. Each step MUST
 complete before the next begins. Failure at any step MUST be recorded.
 All steps MUST execute; there is no short-circuit termination. The final
 verdict is the conjunction of all step results.
+
+Validation MUST be single-threaded with respect to nonce tracking.
+Implementations that parallelize validation steps MUST synchronize
+nonce uniqueness checks to prevent race conditions.
+
+Validation steps 5.1–5.12 are ordered for dependency resolution, not
+for trust establishment. Each step validates its own inputs independently.
+A pass at step N does not imply the inputs to step N have been
+cryptographically verified — full cryptographic binding verification
+occurs at step 5.12 (Seal Validation). The final verdict is the
+conjunction of ALL steps; no individual step result is authoritative
+in isolation.
 
 ### 5.1 Schema Validation
 
@@ -1181,6 +1250,20 @@ Every validation failure MUST produce a structured error containing:
 All errors MUST be collected. The validator MUST NOT terminate at the
 first failure. The final result MUST contain the complete set of errors.
 
+**Error Ordering:** Errors MUST be sorted by: (1) validation step number
+(Section 5 ordering), then (2) artifact type (lexicographic), then
+(3) error code (lexicographic), then (4) field name (lexicographic, if
+applicable). This ordering is REQUIRED for deterministic error output
+across implementations.
+
+**Minimum array size violations:** When an array field does not meet its
+declared minimum size, the error code MUST be `SCHEMA_INVALID`.
+
+**Unregistered errors:** Errors not covered by the defined error code
+registry (Section 6.6) MUST use code `INTERNAL_VALIDATOR_ERROR` with a
+descriptive message. This covers out-of-memory conditions, JSON parse
+failures, and other implementation-level errors.
+
 ### 6.6 Error Code Registry
 
 The following error codes are defined:
@@ -1238,6 +1321,10 @@ The following error codes are defined:
 `REPLAY_BUNDLE_INVALID`, `REPLAY_NON_DETERMINISTIC`
 
 **Anchor errors:** `ANCHOR_INVALID`
+
+**Policy runtime errors:** `POLICY_REGEX_TIMEOUT`
+
+**Internal errors:** `INTERNAL_VALIDATOR_ERROR`
 
 ---
 
@@ -1514,15 +1601,31 @@ An extension artifact MUST declare:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `extensionId` | string | Globally unique type identifier |
-| `schemaVersion` | string | Extension schema version |
+| `extensionId` | string | Reverse domain notation (e.g., `org.example.myextension`) |
+| `schemaVersion` | string | Extension schema version (MAJOR.MINOR.PATCH) |
 | `hashAlgorithm` | string | MUST be `SHA-256` |
 | `hashExclusions` | array of string | Fields excluded from hash computation |
+| `hashInclusions` | array of string | Fields included in hash computation (REQUIRED) |
+| `sortedArrays` | array of string | Array fields that MUST be sorted before hashing |
 | `bindingTargets` | array of BindingTarget | Artifacts this extension binds to |
+
+**Extension ID Format:** Extension IDs MUST use reverse domain notation
+(e.g., `org.example.myextension`). The ID MUST match
+`/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/`.
 
 **BindingTarget:** `{ artifactType: string, fieldName: string }` — declares
 that this extension's hash MUST appear in the specified field of the
-specified artifact type.
+specified artifact type. Binding targets MUST NOT reference core artifact
+hash fields (e.g., `packageHash`, `planHash`). Binding targets MUST
+NOT create cycles in the artifact binding graph (Section 4.5).
+
+**Hash Computation Specification:** Extensions MUST fully specify their
+hash computation by declaring `hashExclusions`, `hashInclusions`, and
+`sortedArrays`. Extensions without a published hash computation
+specification MUST be treated as unverifiable by validators. The hash
+input MUST be the canonical JSON (Section 3.1) of the object containing
+only the `hashInclusions` fields, with `hashExclusions` removed and
+`sortedArrays` sorted lexicographically.
 
 ### 11.2 SCP Extension Slot
 
@@ -1569,6 +1672,21 @@ A validator that encounters an extension it does not recognize MUST:
 A validator that implements a recognized extension MUST validate it with
 the same rigor as core artifacts: hash verification, binding validation,
 and fail-closed semantics.
+
+### 11.5 Extension Registry
+
+The protocol maintainer MUST publish a registry of known extension IDs
+as a publicly accessible document. The registry MUST contain for each
+extension: `extensionId`, maintainer, schema URL, and hash computation
+specification URL.
+
+Extension IDs MUST be globally unique. Uniqueness is enforced by the
+registry. Unregistered extension IDs MUST still be accepted by
+validators (forward compatibility) but validators MAY emit a warning
+for unregistered extensions.
+
+Two extensions MUST NOT declare the same `extensionId`. If a collision
+is detected during registration, the later submission MUST be rejected.
 
 ---
 

@@ -60,6 +60,72 @@ claiming conformance MUST pass every mandatory assertion.
 | S2-36 | Repo Snapshot with absolute path fails path safety | Yes |
 | S2-37 | SCP `packageHash` mismatch against computed hash fails | Yes |
 | S2-38 | Unknown fields in any artifact are preserved (not rejected) | Yes |
+| S2-39 | Execution Plan containing backtick character fails lint | Yes |
+| S2-40 | Execution Plan containing `;` fails lint | Yes |
+| S2-41 | Execution Plan containing `&&` fails lint | Yes |
+| S2-42 | Execution Plan containing `\|\|` fails lint | Yes |
+| S2-43 | Execution Plan containing pipe `\|` fails lint | Yes |
+| S2-44 | Execution Plan containing `chmod` fails lint | Yes |
+| S2-45 | Execution Plan containing `chown` fails lint | Yes |
+| S2-46 | Execution Plan containing `npm` fails lint | Yes |
+| S2-47 | Execution Plan containing `pnpm` fails lint | Yes |
+| S2-48 | Execution Plan containing `yarn` fails lint | Yes |
+| S2-49 | Execution Plan containing `node` fails lint | Yes |
+| S2-50 | Execution Plan containing `powershell` fails lint | Yes |
+| S2-51 | Execution Plan containing `cmd.exe` fails lint | Yes |
+| S2-52 | Execution Plan containing `zsh` fails lint | Yes |
+| S2-53 | Execution Plan containing `bash` fails lint | Yes |
+| S2-54 | Execution Plan containing `POST` (case-sensitive) fails lint | Yes |
+| S2-55 | Execution Plan containing `PUT` (case-sensitive) fails lint | Yes |
+| S2-56 | Execution Plan containing `PATCH` (case-sensitive) fails lint | Yes |
+| S2-57 | Execution Plan containing `DELETE` (case-sensitive) fails lint | Yes |
+| S2-58 | Execution Plan containing whole-word `rm` fails lint | Yes |
+| S2-59 | Execution Plan containing whole-word `mv` fails lint | Yes |
+| S2-60 | Execution Plan containing whole-word `cp` fails lint | Yes |
+| S2-61 | Execution Plan containing whole-word `sh` fails lint | Yes |
+| S2-62 | Execution Plan containing whole-word `go` fails lint | Yes |
+| S2-63 | Execution Plan lint for forbidden substrings is case-insensitive (except HTTP methods) | Yes |
+| S2-64 | Execution Plan containing `post` (lowercase) does NOT fail lint (HTTP methods are case-sensitive) | Yes |
+| S2-65 | Step Packet containing forbidden field name `"cmd":` fails | Yes |
+| S2-66 | Step Packet containing forbidden field name `"command":` fails | Yes |
+| S2-67 | Step Packet containing forbidden field name `"shell":` fails | Yes |
+| S2-68 | Step Packet containing forbidden field name `"curl":` fails | Yes |
+| S2-69 | Step Packet containing forbidden field name `"http":` fails | Yes |
+| S2-70 | Step Packet containing forbidden field name `"https":` fails | Yes |
+| S2-71 | Step Packet containing forbidden field name `"spawn":` fails | Yes |
+| S2-72 | Step Packet containing forbidden field name `"write":` fails | Yes |
+| S2-73 | Step Packet containing forbidden field name `"delete":` fails | Yes |
+| S2-74 | Step Packet text containing `curl` fails lint | Yes |
+| S2-75 | Step Packet text containing `wget` fails lint | Yes |
+| S2-76 | Step Packet text containing `http://` fails lint | Yes |
+| S2-77 | Step Packet text containing `https://` fails lint | Yes |
+| S2-78 | Step Packet text containing `fetch(` fails lint | Yes |
+| S2-79 | Step Packet text containing `axios` fails lint | Yes |
+| S2-80 | Step Packet text containing `writeFile` fails lint | Yes |
+| S2-81 | Step Packet text containing `unlink` fails lint | Yes |
+| S2-82 | Step Packet text containing `rmdir` fails lint | Yes |
+| S2-83 | Step Packet text containing `mkdir` fails lint | Yes |
+| S2-84 | Step Packet text containing `child_process` fails lint | Yes |
+| S2-85 | Step Packet text containing `spawn(` fails lint | Yes |
+| S2-86 | Step Packet text containing `exec(` fails lint | Yes |
+| S2-87 | Step Packet text containing `execFile(` fails lint | Yes |
+| S2-88 | Step Packet text containing `fork(` fails lint | Yes |
+| S2-89 | Approval Policy with duplicate `approverId` entries fails | Yes |
+| S2-90 | Approval Policy with quorum `m = 0` fails | Yes |
+| S2-91 | Approval Policy with quorum `n = 0` fails | Yes |
+| S2-92 | Approval Policy with `n` exceeding total active approvers for required roles fails | Yes |
+| S2-93 | Step Packet with `reviewerSequence` containing fewer than 2 distinct roles fails | Yes |
+
+## Section 2A — Session Anchor
+
+| ID | Assertion | Mandatory |
+|----|-----------|-----------|
+| S2A-01 | Session Anchor with `planHash` mismatch against computed Execution Plan hash fails | Yes |
+| S2A-02 | Session Anchor with `finalEvidenceHash` mismatch against last evidence item hash fails | Yes |
+| S2A-03 | Session Anchor with optional field present but referenced artifact missing fails | Yes |
+| S2A-04 | Session Anchor with `finalAttestationHash` mismatch against computed attestation hash fails | Yes |
+| S2A-05 | Session Anchor with `runnerIdentityHash` mismatch against computed Runner Identity hash fails | Yes |
+| S2A-06 | Session Anchor with `policySetHash` mismatch against computed Policy Set hash fails | Yes |
 
 ## Section 3 — Cryptographic Primitives
 
@@ -96,6 +162,17 @@ claiming conformance MUST pass every mandatory assertion.
 | S3-29 | PEM public key format accepted | Yes |
 | S3-30 | Hex public key format accepted and converted | Yes |
 | S3-31 | Identical canonical JSON input produces identical hash across implementations | Yes |
+| S3-32 | Datetime with `.000Z` and without fractional seconds produce identical canonical form | Yes |
+| S3-33 | NaN value in artifact rejected during canonical JSON normalization | Yes |
+| S3-34 | Infinity value in artifact rejected during canonical JSON normalization | Yes |
+| S3-35 | Unicode key sorting uses code point order (non-ASCII keys sorted correctly) | Yes |
+| S3-36 | Nested undefined values in nested objects are omitted from canonical JSON | Yes |
+| S3-37 | Decision Lock with unsorted `nonGoals` produces correct hash (implementation sorts before hashing) | Yes |
+| S3-38 | Execution Plan with steps out of `stepId` order produces correct hash (implementation sorts before hashing) | Yes |
+| S3-39 | Repo Snapshot with files out of `path` order produces correct hash (implementation sorts before hashing) | Yes |
+| S3-40 | SCP with hash arrays in non-lexicographic order produces correct hash (implementation sorts before hashing) | Yes |
+| S3-41 | Step Packet `reviewerSequence` order IS preserved (not sorted) in hash computation | Yes |
+| S3-42 | RSA key shorter than 2048 bits rejected during signature verification | Yes |
 
 ## Section 4 — Artifact Binding Graph
 
@@ -121,6 +198,7 @@ claiming conformance MUST pass every mandatory assertion.
 | S4-18 | Duplicate approval signature nonce rejected | Yes |
 | S4-19 | Optional SCP hash field present but artifact missing fails with `SEAL_MISSING_DEPENDENCY` | Yes |
 | S4-20 | Optional SCP hash field present with wrong hash fails with `SEAL_HASH_MISMATCH` | Yes |
+| S4-21 | Artifact binding graph cycle detected and rejected | Yes |
 
 ## Section 5 — Validation Order
 
@@ -146,6 +224,14 @@ claiming conformance MUST pass every mandatory assertion.
 | S5-18 | Attestation verification rejects invalid signature | Yes |
 | S5-19 | Seal validation rejects `packageHash` mismatch | Yes |
 | S5-20 | Seal validation rejects missing required artifact | Yes |
+| S5-21 | Gate evaluation rejects Decision Lock with `status: "draft"` | Yes |
+| S5-22 | Gate evaluation rejects Decision Lock with `status: "rejected"` | Yes |
+| S5-23 | Gate evaluation rejects Decision Lock with invalid `status` value | Yes |
+| S5-24 | Patch Apply Report `reportHash` mismatch fails | Yes |
+| S5-25 | Patch touching file path containing `..` fails path safety | Yes |
+| S5-26 | Patch touching file outside `allowedFiles` fails | Yes |
+| S5-27 | Symbol validation: Model Response importing symbol outside `allowedSymbols` fails | Yes |
+| S5-28 | Symbol validation: Model Response referencing file outside `allowedFiles` fails | Yes |
 
 ## Section 6 — Failure Semantics
 
@@ -157,6 +243,9 @@ claiming conformance MUST pass every mandatory assertion.
 | S6-04 | Every failure produces structured error with `code`, `message`, `artifactType` | Yes |
 | S6-05 | All errors collected; no short-circuit termination | Yes |
 | S6-06 | Every defined error code is emitted in the appropriate failure scenario | Yes |
+| S6-07 | Error output sorted by step/artifact/code/field as specified in Section 6.5 | Yes |
+| S6-08 | `INTERNAL_VALIDATOR_ERROR` used for unregistered error types | Yes |
+| S6-09 | `POLICY_REGEX_TIMEOUT` emitted when regex evaluation exceeds 100 ms timeout | Yes |
 
 ## Section 7 — Non-Execution Guarantee
 
@@ -202,6 +291,22 @@ claiming conformance MUST pass every mandatory assertion.
 | S10-08 | Non-deterministic model params (temperature != 0) rejected at capsule level | Yes |
 | S10-09 | Sensitive key patterns redacted in persisted artifacts | Yes |
 | S10-10 | Sensitive value prefixes redacted in persisted artifacts | Yes |
+| S10-11 | Plan substitution detected via multi-point hash binding (plan hash bound in capsule, step packets, attestation, evidence, anchor, SCP) | Yes |
+| S10-12 | Model Response with `model.provider` different from Prompt Capsule `model.provider` detected via hash mismatch | Yes |
+| S10-13 | Model Response with `model.modelId` different from Prompt Capsule `model.modelId` detected via hash mismatch | Yes |
+| S10-14 | Model Response with `model.seed` different from Prompt Capsule `model.seed` detected via hash mismatch | Yes |
+| S10-15 | Evidence with `capabilityUsed` differing only in case from registry entry fails (exact match required) | Yes |
+| S10-16 | Evidence with capability requiring human confirmation but empty `humanConfirmationProof` fails | Yes |
+| S10-17 | Sensitive key patterns matched case-insensitively during redaction | Yes |
+| S10-18 | Sensitive key patterns in nested objects redacted recursively | Yes |
+| S10-19 | Approval Bundle with same `approverId` signing same `artifactType` twice fails (`requireDistinctApprovers` enforcement) | Yes |
+
+## Section 10A — Adversarial Timestamp Edge Cases
+
+| ID | Assertion | Mandatory |
+|----|-----------|-----------|
+| S10A-01 | Evidence chain with equal consecutive timestamps passes (monotonically non-decreasing) | Yes |
+| S10A-02 | Attestation with `createdAt` strictly less than last evidence `timestamp` fails | Yes |
 
 ## Section 11 — Extension Mechanism
 
@@ -212,6 +317,7 @@ claiming conformance MUST pass every mandatory assertion.
 | S11-03 | Extension does not alter core artifact hash computations | Yes |
 | S11-04 | Unrecognized extension preserved (not rejected) | Yes |
 | S11-05 | Unrecognized extension does not cause validation failure | Yes |
+| S11-06 | Extension ID not matching reverse domain notation regex rejected | Yes |
 
 ## Section 12 — Formal Invariants
 
@@ -230,10 +336,17 @@ claiming conformance MUST pass every mandatory assertion.
 | S12-11 | INV-11: Non-execution guarantee holds | Yes |
 | S12-12 | INV-12: Fail-closed in all ambiguous states | Yes |
 
+## Section 13 — Policy Operator Tests
+
+| ID | Assertion | Mandatory |
+|----|-----------|-----------|
+| S13-01 | Policy with invalid operator fails with `POLICY_OPERATOR_UNSUPPORTED` | Yes |
+| S13-02 | Policy condition evaluation error causes rule to fail (fail-closed) | Yes |
+
 ---
 
-**Total assertions:** 137
-**Mandatory:** 131
-**Optional:** 6
+**Total assertions:** 258
+**Mandatory:** 255
+**Optional:** 3
 
 *End of Conformance Test Matrix*

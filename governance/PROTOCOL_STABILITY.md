@@ -112,6 +112,18 @@ The following MUST exist in the repository:
 
 If any of these fail in CI, the change **MUST NOT merge**.
 
+### Protocol Invariant Test Suite Freeze Rule
+
+> Conformance vectors for a given minor version **MUST never be modified retroactively**.
+
+- **New vectors** can only be added in minor releases (1.x → 1.y)
+- **Existing vectors** can only change in major releases (X.0.0)
+- **Patch releases** (1.0.x) can only add clarifications that do not change validation behavior
+
+**Why this matters:** If someone "fixes" a vector in 1.0.4 without bumping minor, they have quietly rewritten the protocol. This clause prevents historical rewrite.
+
+The conformance matrix is not a set of examples — it is the **law**. What is valid at 1.0.0 must remain valid at 1.0.99.
+
 ---
 
 ## 5. Extension Model Governance
@@ -294,3 +306,72 @@ If you follow this:
 - Your OSS remains neutral and credible
 
 **This is how something becomes durable instead of trendy.**
+
+---
+
+## 16. Extension Registration Template
+
+New artifact types MUST be registered with this template:
+
+```yaml
+extension:
+  typeIdentifier: "ai.syndicate.agent-evidence"
+  version: "1.0.0"
+  tier: 2
+  
+  hashBehavior:
+    inclusions: ["id", "agentId", "timestamp", "outputs"]
+    exclusions: ["hash", "signature"]
+    canonicalSort: "lexicographic"
+  
+  binding:
+    targets: ["sealed-change-package"]
+    requiredBy: ["execution-plan"]
+  
+  conformance:
+    vectorsRequired: 3
+    vectorPrefixes: ["100-", "101-", "102-"]
+```
+
+---
+
+## 17. Protocol Evolution Playbook
+
+The antidote to stagnation is **controlled extension growth**, not loosened Tier 1.
+
+### For Contributors
+
+1. **Don't ask permission — ask clarity**
+   - "Does this change Tier 1?" → Check policy section 2
+   - "Is this a new error code?" → Tier 2, add to registry
+   - "Is this documentation?" → Tier 3, PR welcome
+
+2. **Don't innovate on hash — innovate on structure**
+   - SHA-256 is settled
+   - Canonical JSON is settled
+   - What's not settled: new artifact types, new binding patterns
+
+3. **Don't skip CI — CI is the contract**
+   - Vectors must pass
+   - Drift must be zero
+   - CNF must match
+
+### For Maintainers
+
+1. **Reject Tier 1 changes in minor releases** — no exceptions
+2. **Encourage Tier 2 proposals** — this is how the protocol grows
+3. **Review Tier 3 freely** — docs improve constantly
+4. **Treat conformance failures as security incidents**
+
+---
+
+## 18. The Path Forward
+
+| Phase | Focus |
+|-------|-------|
+| **Now** | Complete Python ↔ TypeScript CNF equivalence |
+| **Soon** | Register first Tier 2 extension (if needed) |
+| **Later** | Community validators — independent implementations |
+| **Eventually** | Protocol becomes infrastructure — maintained by its users |
+
+The protocol survives not because it is perfect, but because it is **hard to change**. That is the feature, not a bug.

@@ -1,8 +1,7 @@
 # Governance Pack: Incident Postmortem
 #
 # Derived from the "Incident Postmortem" reference wedge.
-# This file is advisory documentation. It is not executable.
-# No tool in this repository reads or acts on this file.
+# Validated by: clawctl governance validate --session <id> --pack incident-postmortem
 
 pack:
   id: incident-postmortem

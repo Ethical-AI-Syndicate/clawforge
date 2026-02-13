@@ -28,6 +28,7 @@ import {
   cmdVerifyRun,
   cmdPutArtifact,
   cmdExportEvidence,
+  cmdGovernanceValidate,
 } from "./commands.js";
 import {
   handleSessionCommand,
@@ -89,6 +90,7 @@ Usage:
   clawctl verify-run --run <id> [--json]
   clawctl put-artifact --run <id> --file <path> [--mime <type>] [--label <text>] [--json]
   clawctl export-evidence --run <id> --out <zipPath> [--max-include-bytes <n>] [--no-artifacts]
+  clawctl governance validate --session <id> [--pack <name>] [--json]
 
   clawctl session create --title <t> [--description <d>] [--session <id>] [--actor <id>] [--json]
   clawctl session status --session <id> [--json]
@@ -175,6 +177,13 @@ async function main(): Promise<number> {
 
     case "gate":
       return handleGateCommand(positional.slice(1), flags, config, json);
+
+    case "governance":
+      if (positional[1] === "validate") {
+        return cmdGovernanceValidate(flags, config, json);
+      }
+      process.stderr.write("Unknown governance subcommand. Use: governance validate\n");
+      return 1;
 
     default:
       process.stderr.write(`Unknown command: ${command}\n\n${USAGE}`);

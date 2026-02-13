@@ -1,8 +1,7 @@
 # Governance Pack: Change Shipping
 #
 # Derived from the "Ship a Change" reference wedge.
-# This file is advisory documentation. It is not executable.
-# No tool in this repository reads or acts on this file.
+# Validated by: clawctl governance validate --session <id> --pack change-shipping
 
 pack:
   id: change-shipping

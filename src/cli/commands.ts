@@ -502,3 +502,66 @@ export async function cmdExportEvidence(
     eventStoreInst.close();
   }
 }
+
+// ---------------------------------------------------------------------------
+// governance validate
+// ---------------------------------------------------------------------------
+
+import { validateSession, listPacks, loadPack } from "../governance/pack-validator.js";
+import { join } from "node:path";
+
+export async function cmdGovernanceValidate(
+  flags: Map<string, string>,
+  config: ClawforgeConfig,
+  json: boolean,
+): Promise<number> {
+  const sessionId = requireFlag(flags, "session");
+  const packName = flags.get("pack");
+  
+  if (!sessionId) {
+    err("missing required flag: --session");
+    return 1;
+  }
+  
+  const sessionPath = join(config.sessionDir, sessionId);
+  
+  try {
+    let results;
+    
+    if (packName) {
+      // Validate against specific pack
+      const packPath = resolve("governance/packs", `${packName}.yml`);
+      const { validateSessionAgainstPack } = await import("../governance/pack-validator.js");
+      results = [await validateSessionAgainstPack(sessionPath, packPath)];
+    } else {
+      // Validate against all packs
+      results = await validateSession(sessionPath);
+    }
+    
+    if (json) {
+      out(JSON.stringify(results, null, 2));
+    } else {
+      // Human-readable output
+      for (const result of results) {
+        out(`\n=== ${result.packId} (v${result.packVersion}) ====`);
+        out(`Session: ${result.sessionId}`);
+        out(`Status: ${result.passed ? "✅ PASSED" : "❌ FAILED"}`);
+        out(`Summary: ${result.summary.passed}/${result.summary.total} expectations passed`);
+        
+        for (const r of result.results) {
+          const icon = r.passed ? "✓" : "✗";
+          const label = r.importance === "expected" ? "[EXPECTED]" : "[RECOMMENDED]";
+          out(`  ${icon} ${label} ${r.id}`);
+          if (r.reason && !r.passed) {
+            out(`      → ${r.reason}`);
+          }
+        }
+      }
+    }
+    
+    return results.every(r => r.passed) ? 0 : 1;
+  } catch (e: unknown) {
+    err((e as Error).message);
+    return 1;
+  }
+}

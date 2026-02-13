@@ -92,21 +92,26 @@ export class ExtensionRegistry {
           result.extensions.push(currentExt as ExtensionEntry);
         }
         currentExt = { status: "active" };
-        currentExt.extensionId = line.split("extensionId:")[1].trim();
+        const parts = line.split("extensionId:");
+        currentExt.extensionId = parts[1]?.trim() ?? "";
       }
       
       if (inExtensions && currentExt.extensionId) {
         if (line.includes("artifactType:")) {
-          currentExt.artifactType = line.split("artifactType:")[1].trim();
+          const parts = line.split("artifactType:");
+          currentExt.artifactType = parts[1]?.trim() ?? "";
         }
         if (line.includes("schemaVersion:")) {
-          currentExt.schemaVersion = line.split("schemaVersion:")[1].trim().replace(/"/g, "");
+          const parts = line.split("schemaVersion:");
+          currentExt.schemaVersion = parts[1]?.trim().replace(/"/g, "") ?? "";
         }
         if (line.includes("status:")) {
-          currentExt.status = line.split("status:")[1].trim() as any;
+          const parts = line.split("status:");
+          currentExt.status = (parts[1]?.trim() ?? "active") as any;
         }
         if (line.includes("registeredAt:")) {
-          currentExt.registeredAt = line.split("registeredAt:")[1].trim().replace(/"/g, "");
+          const parts = line.split("registeredAt:");
+          currentExt.registeredAt = parts[1]?.trim().replace(/"/g, "") ?? "";
         }
       }
     }

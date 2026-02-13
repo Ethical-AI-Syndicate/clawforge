@@ -1,0 +1,193 @@
+# ClawForge Audit Trail - Reusable Workflow
+#
+# Records GitHub Actions workflow runs to ClawForge for audit trails.
+#
+# Usage:
+#   jobs:
+#     audit:
+#       uses: path/to/clawforge-audit.yml@v1
+#       with:
+#         run-id: ${{ github.run_id }}-${{ github.run_number }}
+#         actor: ${{ github.actor }}
+#         repository: ${{ github.repository }}
+
+name: ClawForge Audit
+
+on:
+  workflow_call:
+    inputs:
+      run-id:
+        type: string
+        required: true
+        description: "Unique run identifier (e.g., ${{ github.run_id }}-${{ github.run_number }})"
+      actor:
+        type: string
+        required: true
+        description: "GitHub actor who triggered the workflow"
+      repository:
+        type: string
+        required: true
+        description: "Repository full name (owner/repo)"
+      branch:
+        type: string
+        required: false
+        default: ${{ github.ref_name }}
+        description: "Branch or ref"
+      sha:
+        type: string
+        required: false
+        default: ${{ github.sha }}
+        description: "Commit SHA"
+      include-artifacts:
+        type: boolean
+        required: false
+        default: true
+        description: "Include build artifacts in evidence"
+      max-artifact-bytes:
+        type: number
+        required: false
+        default: 10485760
+        description: "Max artifact bytes (default 10MB)
+
+jobs:
+  clawforge-record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ClawForge
+        run: npm install -g clawforge
+
+      - name: Initialize ClawForge
+        run: clawctl init
+
+      - name: Create ClawForge session
+        id: session
+        run: |
+          SESSION_ID="${{ inputs.run-id }}"
+          echo "session-id=$SESSION_ID" >> $GITHUB_OUTPUT
+          
+          # Create session with GitHub context as metadata
+          clawctl new-run \
+            --run "$SESSION_ID" \
+            --actor "${{ inputs.actor }}" \
+            --correlation "${{ inputs.repository }}::${{ inputs.branch }}" \
+            --meta '{"github_sha":"${{ inputs.sha }}","github_actor":"${{ inputs.actor }}","github_repo":"${{ inputs.repository }}","github_branch":"${{ inputs.branch }}"}' \
+            --json
+
+      - name: Record workflow start event
+        run: |
+          cat > /tmp/workflow-started.json << EOF
+          {
+            "eventType": "WorkflowStarted",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "payload": {
+              "workflow": "${{ github.workflow }}",
+              "run_id": ${{ github.run_id }},
+              "run_number": ${{ github.run_number }},
+              "actor": "${{ inputs.actor }}",
+              "repository": "${{ inputs.repository }}",
+              "branch": "${{ inputs.branch }}",
+              "sha": "${{ inputs.sha }}"
+            }
+          }
+          EOF
+          
+          clawctl append-event \
+            --run "${{ steps.session.outputs.session-id }}" \
+            --event /tmp/workflow-started.json \
+            --json
+
+      # Run your actual CI/CD steps here
+      # This is where you'd normally run tests, builds, deploys, etc.
+      - name: Simulate CI work (replace with your actual steps)
+        run: |
+          echo "Running CI/CD work..."
+          # Your actual CI steps go here
+          # Examples:
+          # - npm test
+          # - npm run build
+          # - docker build
+
+      - name: Record CI results as artifact
+        run: |
+          # Create a summary artifact
+          cat > /tmp/ci-results.json << EOF
+          {
+            "workflow": "${{ github.workflow }}",
+            "run_id": ${{ github.run_id }},
+            "status": "${{ job.status }}",
+            "conclusion": "${{ job.conclusion }}",
+            "steps": [
+              {"name": "checkout", "status": "success"},
+              {"name": "setup-node", "status": "success"},
+              {"name": "install-clawforge", "status": "success"},
+              {"name": "ci-work", "status": "${{ job.status }}"}
+            ]
+          }
+          EOF
+          
+          clawctl put-artifact \
+            --run "${{ steps.session.outputs.session-id }}" \
+            --file /tmp/ci-results.json \
+            --mime application/json \
+            --label "CI Results" \
+            --json
+
+      - name: Record workflow completion
+        run: |
+          cat > /tmp/workflow-completed.json << EOF
+          {
+            "eventType": "WorkflowCompleted",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "payload": {
+              "workflow": "${{ github.workflow }}",
+              "run_id": ${{ github.run_id }},
+              "status": "${{ job.status }}",
+              "conclusion": "${{ job.conclusion }}",
+              "actor": "${{ inputs.actor }}"
+            }
+          }
+          EOF
+          
+          clawctl append-event \
+            --run "${{ steps.session.outputs.session-id }}" \
+            --event /tmp/workflow-completed.json \
+            --json
+
+      - name: Export evidence bundle
+        run: |
+          # Export evidence bundle
+          clawctl export-evidence \
+            --run "${{ steps.session.outputs.session-id }}" \
+            --out clawforge-evidence-${{ steps.session.outputs.session-id }}.zip \
+            --max-include-bytes ${{ inputs.max-artifact-bytes }} \
+            $([ '${{ inputs.include-artifacts }}' = 'true' ] && echo '' || echo '--no-artifacts')
+
+      - name: Upload evidence as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clawforge-evidence-${{ steps.session.outputs.session-id }}
+          path: clawforge-evidence-${{ steps.session.outputs.session-id }}.zip
+          retention-days: 90
+
+      - name: Verify session integrity
+        run: |
+          clawctl verify-run \
+            --run "${{ steps.session.outputs.session-id }}" \
+            --json
+
+      - name: Validate against governance pack
+        run: |
+          # Validate against change-shipping pack
+          clawctl governance validate \
+            --session "${{ steps.session.outputs.session-id }}" \
+            --pack change-shipping \
+            --json >> $GITHUB_STEP_SUMMARY || true

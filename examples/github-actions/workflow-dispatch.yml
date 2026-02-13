@@ -1,0 +1,42 @@
+# Example: Manual Workflow with ClawForge Audit
+#
+# This demonstrates how to add ClawForge audit to an existing workflow.
+# Copy this to your .github/workflows/ directory.
+
+name: Deploy with Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: 'Version to deploy'
+        required: true
+
+jobs:
+  audit:
+    uses: ./.github/workflows/clawforge-audit.yml
+    with:
+      run-id: deploy-${{ github.run_id }}-${{ github.run_number }}
+      actor: ${{ github.actor }}
+      repository: ${{ github.repository }}
+      branch: ${{ github.ref_name }}
+      sha: ${{ github.sha }}
+    secrets:
+      # Pass any secrets needed by the workflow
+      # The reusable workflow doesn't use secrets by default
+
+  deploy:
+    needs: audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to ${{ github.event.inputs.environment }}
+        run: |
+          echo "Deploying version ${{ github.event.inputs.version }} to ${{ github.event.inputs.environment }}"
+          # Your actual deployment commands here

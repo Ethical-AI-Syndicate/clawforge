@@ -26,6 +26,10 @@ import { createHash } from "node:crypto";
 // CNF Spec Version
 export const CNF_SPEC_VERSION = "1.0.0";
 
+// CNF Schema Hash (immutable - computed from canonical minimal CNF)
+// Any change to CNF schema requires major version bump
+export const CNF_SCHEMA_HASH = "4503e4f699a0ef7665620886d152d93c7a5ab53f51c101e2186b61fae5ed594e";
+
 /**
  * CNF Error structure
  */

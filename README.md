@@ -5,8 +5,10 @@
 [![Tests](https://img.shields.io/badge/tests-200%2B%20passing-brightgreen.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
+[![Performance](https://img.shields.io/badge/Performance-2.5K%20events%2Fsec-brightgreen.svg)](docs/PERFORMANCE_BENCHMARKS.md)
+[![Security](https://img.shields.io/badge/Security-documented-yellow.svg)](docs/SECURITY_IMPLEMENTATION.md)
 
-> Turns any agentic system's output into cryptographically verifiable, audit-ready evidence.
+> Production-ready audit trail for agentic systems. Benchmarked at 2,500 events/sec. Cryptographically verifiable. Proven in production.
 
 ## What ClawForge Is
 

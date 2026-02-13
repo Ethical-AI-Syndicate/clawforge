@@ -202,3 +202,95 @@ This policy is **self-enforcing**:
 - Version binding prevents skipped updates
 
 There is no committee to convince. The code enforces the policy.
+
+---
+
+## 11. Reference Implementation Policy
+
+The ClawForge TypeScript implementation is:
+- A reference implementation
+- Not the protocol authority
+
+**The spec governs behavior.** If reference code and spec diverge: **The spec wins.**
+
+---
+
+## 12. Neutrality & OSS Integrity
+
+- No trademark restrictions on independent implementations
+- No CLA required for conformance
+- No paywall around test vectors
+- Spec remains MIT or Apache licensed
+- Governance remains public in repository
+
+**Monetization can exist around tooling, hosting, orchestration, enterprise services — but never around protocol access.**
+
+---
+
+## 13. Deprecation Policy
+
+Artifacts or fields MAY be deprecated but MUST:
+- Remain valid for at least one full minor version
+- Be clearly marked `DEPRECATED` in spec
+- Emit warning-level error code (not fail)
+- Have removal version explicitly stated
+
+**Removal requires major version bump.**
+
+---
+
+## 14. Security Response Policy
+
+If a vulnerability affects integrity guarantees:
+- Immediate security advisory
+- Temporary "validator warning mode" allowed
+- Patch release required
+- Conformance matrix updated
+
+**Security patches do not require governance delay.**
+
+---
+
+## 15. Stability Promise
+
+The protocol's promise is:
+
+> A Sealed Change Package valid under version 1.0.0 will remain valid under all 1.x versions.
+
+**Breaking that promise requires a major version change.** That is the social contract.
+
+---
+
+## Why This Works
+
+It's **strict** where it matters:
+- Hashes
+- Canonicalization
+- Determinism
+- Fail-closed semantics
+
+It's **flexible** where it should be:
+- New artifact types
+- New error codes
+- New extension points
+
+It **avoids bureaucracy** because:
+- No committees
+- No foundation required
+- No voting structures
+- No centralized control
+
+But it still prevents entropy.
+
+---
+
+## What This Enables
+
+If you follow this:
+- Independent vendors can implement validators safely
+- Enterprise adopters can trust backward compatibility
+- Drift becomes visible
+- Spec rot becomes measurable
+- Your OSS remains neutral and credible
+
+**This is how something becomes durable instead of trendy.**

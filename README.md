@@ -288,6 +288,30 @@ tests/
 - ❌ **Not a UI Platform** - CLI-primary; build UIs on top if you want
 - ❌ **Not Encryption** - Data at rest is your responsibility
 
+## Production Use
+
+ClawForge is used in production by enterprise applications:
+
+### saas-boilerplate
+**Enterprise SaaS applications** — Dual audit pattern (DB + ClawForge)
+
+- **Integration**: Optional via `@saas/compliance` package
+- **Pattern**: Dual audit for compliance-critical actions
+- **Use case**: SOC2/GDPR evidence bundles
+- **Performance**: Zero impact when disabled
+
+[View integration](https://github.com/mikeholownych/saas-boilerplate/blob/main/packages/compliance/CLAWFORGE_INTEGRATION.md)
+
+### mcpcodex-v2
+**MCP governance validation** — Full stack (ClawForge + governance-validator)
+
+- **Integration**: Core audit infrastructure
+- **Pattern**: Event recording + policy validation
+- **Use case**: AI-assisted development governance
+- **Performance**: 550 validations/sec
+
+[View architecture](https://github.com/Ethical-AI-Syndicate/mcpcodex-v2/blob/main/docs/ARCHITECTURE.md)
+
 ## Ecosystem
 
 ClawForge is **Layer 1** of the Ethical-AI-Syndicate audit ecosystem:

@@ -6,7 +6,28 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
 
-> A provider-agnostic, installable execution platform that turns conversational intent into governed, deterministic workflows invoking disposable agent workers.
+> Turns any agentic system's output into cryptographically verifiable, audit-ready evidence.
+
+## What ClawForge Is
+
+**ClawForge is an audit trail system for AI-assisted workflows.** It doesn't run your agents—it records what they do.
+
+Your agents (Claude, GPT, custom code, anything) produce artifacts and events. ClawForge ensures those artifacts are:
+- **Immutably recorded** with hash-chained events
+- **Verifiably intact** with SHA-256 content addressing
+- **Exportable as bundles** for compliance and audit
+
+That's it. No orchestration. No agent management. No workflows to configure.
+
+**The simplest description**: It's a cryptographic ledger for AI-generated artifacts.
+
+## Who Uses ClawForge
+
+| Role | Why |
+|------|-----|
+| **Compliance Teams** | Need provable audit trails for agent actions |
+| **Platform Engineers** | Building agentic systems with accountability |
+| **DevOps/SRE** | Recording production changes with verifiable evidence |
 
 ## Why ClawForge?
 
@@ -40,11 +61,14 @@ pnpm clawctl verify-run --run deploy-feature-x
 ```
 **Result**: Every change with documented intent, approvals, and rollback capability.
 
-### ✅ Use Case: AI Agent Coordination
-ClawForge orchestrates your AI agents without managing their lifecycles:
-- Define what should happen with typed contracts
-- Agents produce artifacts, not audit events
-- System records all state transitions deterministically
+### ✅ Use Case: AI Agent Audit Trail
+
+Your AI agents (Claude, GPT, custom code) produce artifacts. ClawForge records them:
+- Agents produce files, decisions, outputs
+- ClawForge hashes and chains every artifact
+- Result: complete, verifiable audit trail
+
+No changes to your agents. Just point them at ClawForge's artifact store.
 
 ## Key Features
 
@@ -111,6 +135,18 @@ pnpm clawctl verify-run --run <runId>
 pnpm clawctl export-evidence --run <runId> --out upgrade-evidence.zip
 ```
 
+## How It Works
+
+```
+1. Your agent does something      →  Produces artifact (file, JSON, decision)
+2. ClawForge hashes the artifact   →  SHA-256 content address
+3. ClawForge appends hash event   →  Chain to previous event
+4. Repeat for every action
+5. Export bundle for audit        →  Self-contained, verifiable
+```
+
+**That's the entire flow.** Your agents don't change. ClawForge just records them.
+
 ## Architecture Overview
 
 ```
@@ -124,11 +160,11 @@ pnpm clawctl export-evidence --run <runId> --out upgrade-evidence.zip
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   CLI/Tools     │    │   Evidence       │    │   Agent         │
-│                 │    │   Export         │    │   Workers       │
-│ • clawctl       │    │ • ZIP Bundle     │    │ • Stateless     │
-│ • Validation    │    │ • Verification   │    │ • Disposable    │
-│ • Verification  │    │ • Portable       │    │ • Ephemeral     │
+│   CLI/Tools     │    │   Evidence       │    │   Your Agents   │
+│                 │    │   Export         │    │                 │
+│ • clawctl       │    │ • ZIP Bundle     │    │ • Claude/GPT    │
+│ • Validation    │    │ • Verification   │    │ • Custom code   │
+│ • Verification  │    │ • Portable       │    │ • Any tool     │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
@@ -244,10 +280,11 @@ tests/
 
 ## What ClawForge is NOT
 
-- ❌ **Not an Agent Framework** - We don't manage agent lifecycles or model selection
-- ❌ **Not a Distributed System** - Local-first design for simplicity and reliability
-- ❌ **Not a UI Platform** - CLI-primary; UI layers can be built on top
-- ❌ **Not Encryption** - Data confidentiality is your responsibility (see [Threat Model](docs/threat-model.md))
+- ❌ **Not an Agent Framework** - We don't run your agents. We record them.
+- ❌ **Not Orchestration** - No workflow definitions, no task queues, no agent lifecycles
+- ❌ **Not a Distributed System** - Local-first, single-node
+- ❌ **Not a UI Platform** - CLI-primary; build UIs on top if you want
+- ❌ **Not Encryption** - Data at rest is your responsibility
 
 ## License
 

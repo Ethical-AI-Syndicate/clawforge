@@ -22,7 +22,6 @@
  */
 
 import { createHash } from "node:crypto";
-import type { VerificationReport } from "./verification-report.js";
 
 // CNF Spec Version
 export const CNF_SPEC_VERSION = "1.0.0";
@@ -55,8 +54,38 @@ export interface CNF {
   mode: "session" | "sealed-package";
   verdict: "pass" | "fail";
   exitCode: number;
-  hashes: CNFHashes;
+  hashes?: CNFHashes;
   errors: CNFError[];
+}
+
+/**
+ * Verification check result
+ */
+interface CheckResult {
+  passed: boolean;
+  error?: string;
+  hash?: string;
+  count?: number;
+  errors?: string[];
+}
+
+/**
+ * Simplified verification report for CNF conversion
+ */
+interface SimplifiedReport {
+  passed: boolean;
+  errors: Array<{
+    code: string;
+    artifactType?: string;
+    path?: string;
+    message: string;
+  }>;
+  hashes: {
+    planHash?: string;
+    packageHash?: string;
+    evidenceChainTailHash?: string;
+    anchorHash?: string;
+  };
 }
 
 /**
@@ -87,9 +116,9 @@ function sortErrors(errors: CNFError[]): CNFError[] {
 }
 
 /**
- * Convert VerificationReport to CNF
+ * Convert simplified report to CNF
  */
-export function toCNF(report: VerificationReport, mode: "session" | "sealed-package" = "sealed-package"): CNF {
+export function toCNF(report: SimplifiedReport, mode: "session" | "sealed-package" = "sealed-package"): CNF {
   const errors: CNFError[] = [];
   
   // Collect all errors from report
@@ -120,15 +149,19 @@ export function toCNF(report: VerificationReport, mode: "session" | "sealed-pack
     if (report.hashes.anchorHash) hashes.anchorHash = report.hashes.anchorHash;
   }
   
-  // Build CNF
+  // Build CNF - omit hashes if empty (per CNF spec)
   const cnf: CNF = {
     specVersion: CNF_SPEC_VERSION,
     mode,
     verdict,
     exitCode,
-    hashes: Object.keys(hashes).length > 0 ? hashes : {},
     errors: sortedErrors,
   };
+  
+  // Add hashes only if non-empty
+  if (Object.keys(hashes).length > 0) {
+    cnf.hashes = hashes;
+  }
   
   return cnf;
 }

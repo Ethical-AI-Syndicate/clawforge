@@ -290,24 +290,13 @@ tests/
 
 ## Ecosystem
 
-ClawForge is Layer 1 (audit infrastructure) in a two-layer architecture:
+ClawForge is **Layer 1** of the Ethical-AI-Syndicate audit ecosystem:
 
 | Layer | Purpose | Repo |
 |-------|---------|------|
-| **1. Audit** | Record events, seal sessions | **ClawForge** (this repo) |
-| **2. Governance** | Validate workflows, enforce policies | [mcpcodex-v2](https://github.com/Ethical-AI-Syndicate/mcpcodex-v2) |
-
-### When to Use Each
-
-**ClawForge alone:**
-- Just need audit trails
-- Want simplest setup
-- No governance validation needed
-
-**ClawForge + mcpcodex-v2:**
-- Need governance pack validation
-- Want policy enforcement
-- Require compliance checking
+| **1. Audit** | Event recording, session sealing | **ClawForge** (this repo) |
+| **2. Governance** | Policy validation | [governance-validator](https://github.com/Ethical-AI-Syndicate/governance-validator) |
+| **3. Application** | Complete MCP solution | [mcpcodex-v2](https://github.com/Ethical-AI-Syndicate/mcpcodex-v2) |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 

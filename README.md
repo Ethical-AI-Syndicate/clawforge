@@ -288,6 +288,29 @@ tests/
 - ❌ **Not a UI Platform** - CLI-primary; build UIs on top if you want
 - ❌ **Not Encryption** - Data at rest is your responsibility
 
+## Ecosystem
+
+ClawForge is Layer 1 (audit infrastructure) in a two-layer architecture:
+
+| Layer | Purpose | Repo |
+|-------|---------|------|
+| **1. Audit** | Record events, seal sessions | **ClawForge** (this repo) |
+| **2. Governance** | Validate workflows, enforce policies | [mcpcodex-v2](https://github.com/Ethical-AI-Syndicate/mcpcodex-v2) |
+
+### When to Use Each
+
+**ClawForge alone:**
+- Just need audit trails
+- Want simplest setup
+- No governance validation needed
+
+**ClawForge + mcpcodex-v2:**
+- Need governance pack validation
+- Want policy enforcement
+- Require compliance checking
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+
 ## License
 
 Proprietary. All rights reserved.
